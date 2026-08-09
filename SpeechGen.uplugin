@@ -1,0 +1,34 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "1.0.0",
+  "FriendlyName": "SpeechGen",
+  "Description": "Offline speech synthesis with verified Kokoro ONNX runtime provisioning.",
+  "Category": "Runtime",
+  "CreatedBy": "MC-Oruc",
+  "CreatedByURL": "https://github.com/MC-Oruc",
+  "DocsURL": "https://github.com/MC-Oruc/SpeechGen",
+  "SupportURL": "https://github.com/MC-Oruc/SpeechGen/issues",
+  "EngineVersion": "5.7.0",
+  "CanContainContent": false,
+  "IsBetaVersion": false,
+  "Installed": false,
+  "Modules": [
+    {
+      "Name": "SpeechGen",
+      "Type": "Runtime",
+      "LoadingPhase": "PreDefault"
+    },
+    {
+      "Name": "SpeechGenEditor",
+      "Type": "Editor",
+      "LoadingPhase": "PostEngineInit"
+    }
+  ],
+  "Plugins": [
+    {
+      "Name": "NNERuntimeORT",
+      "Enabled": true
+    }
+  ]
+}
