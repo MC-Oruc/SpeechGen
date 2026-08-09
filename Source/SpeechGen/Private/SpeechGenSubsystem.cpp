@@ -4,7 +4,6 @@
 #include "HAL/FileManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
-#include "Misc/ScopeExit.h"
 #include "Modules/ModuleManager.h"
 #include "NNE.h"
 #include "NNEModelData.h"
@@ -85,6 +84,7 @@ struct USpeechGenSubsystem::FResolvedRequest
 	float Speed = 1.0f;
 	float Gain = 1.0f;
 	float PauseScale = 1.0f;
+	TSharedPtr<std::atomic_bool, ESPMode::ThreadSafe> CancellationFlag;
 };
 
 void USpeechGenSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -223,7 +223,8 @@ FGuid USpeechGenSubsystem::SynthesizeAsync(const FSpeechGenRequest& Request)
 
 	{
 		FScopeLock Lock(&CancellationMutex);
-		ActiveRequestCounts.FindOrAdd(Resolved.TurnId)++;
+		Resolved.CancellationFlag = MakeShared<std::atomic_bool, ESPMode::ThreadSafe>(false);
+		ActiveCancellationFlags.FindOrAdd(Resolved.TurnId).Add(Resolved.CancellationFlag);
 	}
 	const FGuid SegmentId = Resolved.SegmentId;
 	TWeakObjectPtr<USpeechGenSubsystem> WeakThis(this);
@@ -273,13 +274,9 @@ bool USpeechGenSubsystem::ResolveRequest(const FSpeechGenRequest& Request, FReso
 
 void USpeechGenSubsystem::ExecuteRequest(FResolvedRequest Request)
 {
-	ON_SCOPE_EXIT
+	if (bShuttingDown || IsRequestCancelled(Request) || !ModelInstance || !Phonemizer)
 	{
-		MarkRequestFinished(Request.TurnId);
-	};
-
-	if (bShuttingDown || IsTurnCancelled(Request.TurnId) || !ModelInstance || !Phonemizer)
-	{
+		MarkRequestFinished(Request.TurnId, Request.CancellationFlag);
 		return;
 	}
 
@@ -290,9 +287,13 @@ void USpeechGenSubsystem::ExecuteRequest(FResolvedRequest Request)
 	{
 		AsyncTask(ENamedThreads::GameThread, [WeakThis = TWeakObjectPtr<USpeechGenSubsystem>(this), Request, Error]()
 		{
-			if (USpeechGenSubsystem* Subsystem = WeakThis.Get(); Subsystem && !Subsystem->IsTurnCancelled(Request.TurnId))
+			if (USpeechGenSubsystem* Subsystem = WeakThis.Get())
 			{
-				Subsystem->OnRequestFailed.Broadcast(Request.TurnId, Request.SegmentId, Error);
+				if (!IsRequestCancelled(Request))
+				{
+					Subsystem->OnRequestFailed.Broadcast(Request.TurnId, Request.SegmentId, Error);
+				}
+				Subsystem->MarkRequestFinished(Request.TurnId, Request.CancellationFlag);
 			}
 		});
 		return;
@@ -304,9 +305,13 @@ void USpeechGenSubsystem::ExecuteRequest(FResolvedRequest Request)
 	{
 		AsyncTask(ENamedThreads::GameThread, [WeakThis = TWeakObjectPtr<USpeechGenSubsystem>(this), Request, Error]()
 		{
-			if (USpeechGenSubsystem* Subsystem = WeakThis.Get(); Subsystem && !Subsystem->IsTurnCancelled(Request.TurnId))
+			if (USpeechGenSubsystem* Subsystem = WeakThis.Get())
 			{
-				Subsystem->OnRequestFailed.Broadcast(Request.TurnId, Request.SegmentId, Error);
+				if (!IsRequestCancelled(Request))
+				{
+					Subsystem->OnRequestFailed.Broadcast(Request.TurnId, Request.SegmentId, Error);
+				}
+				Subsystem->MarkRequestFinished(Request.TurnId, Request.CancellationFlag);
 			}
 		});
 		return;
@@ -361,18 +366,24 @@ void USpeechGenSubsystem::ExecuteRequest(FResolvedRequest Request)
 		Error = TEXT("Kokoro ONNX inference failed.");
 	}
 
-	if (!Error.IsEmpty() || IsTurnCancelled(Request.TurnId))
+	if (!Error.IsEmpty())
 	{
-		if (!Error.IsEmpty())
+		AsyncTask(ENamedThreads::GameThread, [WeakThis = TWeakObjectPtr<USpeechGenSubsystem>(this), Request, Error]()
 		{
-			AsyncTask(ENamedThreads::GameThread, [WeakThis = TWeakObjectPtr<USpeechGenSubsystem>(this), Request, Error]()
+			if (USpeechGenSubsystem* Subsystem = WeakThis.Get())
 			{
-				if (USpeechGenSubsystem* Subsystem = WeakThis.Get(); Subsystem && !Subsystem->IsTurnCancelled(Request.TurnId))
+				if (!IsRequestCancelled(Request))
 				{
 					Subsystem->OnRequestFailed.Broadcast(Request.TurnId, Request.SegmentId, Error);
 				}
-			});
-		}
+				Subsystem->MarkRequestFinished(Request.TurnId, Request.CancellationFlag);
+			}
+		});
+		return;
+	}
+	if (IsRequestCancelled(Request))
+	{
+		MarkRequestFinished(Request.TurnId, Request.CancellationFlag);
 		return;
 	}
 
@@ -390,11 +401,15 @@ void USpeechGenSubsystem::ExecuteRequest(FResolvedRequest Request)
 	Result.DurationSeconds = static_cast<float>(Result.PcmSamples.Num()) / SampleRate;
 
 	AsyncTask(ENamedThreads::GameThread,
-		[WeakThis = TWeakObjectPtr<USpeechGenSubsystem>(this), Result = MoveTemp(Result)]() mutable
+		[WeakThis = TWeakObjectPtr<USpeechGenSubsystem>(this), Request, Result = MoveTemp(Result)]() mutable
 		{
-			if (USpeechGenSubsystem* Subsystem = WeakThis.Get(); Subsystem && !Subsystem->IsTurnCancelled(Result.TurnId))
+			if (USpeechGenSubsystem* Subsystem = WeakThis.Get())
 			{
-				Subsystem->OnSegmentReady.Broadcast(Result);
+				if (!IsRequestCancelled(Request))
+				{
+					Subsystem->OnSegmentReady.Broadcast(Result);
+				}
+				Subsystem->MarkRequestFinished(Request.TurnId, Request.CancellationFlag);
 			}
 		});
 }
@@ -406,34 +421,46 @@ void USpeechGenSubsystem::CancelTurn(const FGuid TurnId)
 		return;
 	}
 	FScopeLock Lock(&CancellationMutex);
-	CancelledTurns.Add(TurnId);
+	if (TArray<TSharedPtr<std::atomic_bool, ESPMode::ThreadSafe>>* Flags = ActiveCancellationFlags.Find(TurnId))
+	{
+		for (const TSharedPtr<std::atomic_bool, ESPMode::ThreadSafe>& Flag : *Flags)
+		{
+			Flag->store(true, std::memory_order_release);
+		}
+	}
 }
 
 void USpeechGenSubsystem::CancelAll()
 {
 	FScopeLock Lock(&CancellationMutex);
-	for (const TPair<FGuid, int32>& ActiveRequest : ActiveRequestCounts)
+	for (const TPair<FGuid, TArray<TSharedPtr<std::atomic_bool, ESPMode::ThreadSafe>>>& Turn : ActiveCancellationFlags)
 	{
-		CancelledTurns.Add(ActiveRequest.Key);
+		for (const TSharedPtr<std::atomic_bool, ESPMode::ThreadSafe>& Flag : Turn.Value)
+		{
+			Flag->store(true, std::memory_order_release);
+		}
 	}
 }
 
-bool USpeechGenSubsystem::IsTurnCancelled(const FGuid TurnId) const
+bool USpeechGenSubsystem::IsRequestCancelled(const FResolvedRequest& Request)
 {
-	FScopeLock Lock(&CancellationMutex);
-	return CancelledTurns.Contains(TurnId);
+	return !Request.CancellationFlag || Request.CancellationFlag->load(std::memory_order_acquire);
 }
 
-void USpeechGenSubsystem::MarkRequestFinished(const FGuid TurnId)
+void USpeechGenSubsystem::MarkRequestFinished(const FGuid TurnId,
+	const TSharedPtr<std::atomic_bool, ESPMode::ThreadSafe>& CancellationFlag)
 {
 	FScopeLock Lock(&CancellationMutex);
-	int32* ActiveCount = ActiveRequestCounts.Find(TurnId);
-	if (!ActiveCount || --(*ActiveCount) > 0)
+	TArray<TSharedPtr<std::atomic_bool, ESPMode::ThreadSafe>>* Flags = ActiveCancellationFlags.Find(TurnId);
+	if (!Flags)
 	{
 		return;
 	}
-	ActiveRequestCounts.Remove(TurnId);
-	CancelledTurns.Remove(TurnId);
+	Flags->RemoveSingleSwap(CancellationFlag, EAllowShrinking::No);
+	if (Flags->IsEmpty())
+	{
+		ActiveCancellationFlags.Remove(TurnId);
+	}
 }
 
 void USpeechGenSubsystem::SetRuntimeState(const ESpeechGenRuntimeState State, const FString& Error)

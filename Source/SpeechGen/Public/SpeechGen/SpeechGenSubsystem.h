@@ -4,6 +4,7 @@
 #include "Misc/QueuedThreadPool.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "SpeechGen/SpeechGenTypes.h"
+#include <atomic>
 #include "SpeechGenSubsystem.generated.h"
 
 class FKokoroPhonemizer;
@@ -48,9 +49,9 @@ private:
 		const FString& Error);
 	bool ResolveRequest(const FSpeechGenRequest& Request, FResolvedRequest& OutRequest, FString& OutError) const;
 	void ExecuteRequest(FResolvedRequest Request);
-	void MarkRequestFinished(FGuid TurnId);
+	void MarkRequestFinished(FGuid TurnId, const TSharedPtr<std::atomic_bool, ESPMode::ThreadSafe>& CancellationFlag);
 	void SetRuntimeState(ESpeechGenRuntimeState State, const FString& Error = FString());
-	bool IsTurnCancelled(FGuid TurnId) const;
+	static bool IsRequestCancelled(const FResolvedRequest& Request);
 
 	UPROPERTY(Transient)
 	TObjectPtr<UNNEModelData> ModelData;
@@ -63,7 +64,6 @@ private:
 	TSharedPtr<FKokoroPhonemizer> Phonemizer;
 	TUniquePtr<FQueuedThreadPool> WorkerPool;
 	mutable FCriticalSection CancellationMutex;
-	TMap<FGuid, int32> ActiveRequestCounts;
-	TSet<FGuid> CancelledTurns;
+	TMap<FGuid, TArray<TSharedPtr<std::atomic_bool, ESPMode::ThreadSafe>>> ActiveCancellationFlags;
 	bool bShuttingDown = false;
 };
