@@ -1,0 +1,3 @@
+[submodule "ThirdParty/flite"]
+	path = ThirdParty/flite
+	url = https://github.com/festvox/flite.git
