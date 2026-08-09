@@ -25,7 +25,7 @@ void USpeechGenRuntimeInstallerSubsystem::Initialize(FSubsystemCollectionBase& C
 		return;
 	}
 
-	if (ValidateInstalledFiles(false, Error))
+	if (ValidateInstalledFiles(true, Error))
 	{
 		SetState(ESpeechGenInstallState::Installed);
 		return;
@@ -243,9 +243,10 @@ void USpeechGenRuntimeInstallerSubsystem::PromoteStagingRuntime()
 	}
 
 	IFileManager::Get().MakeDirectory(*FPaths::GetPath(RuntimeDirectory), true);
+	FString BackupDirectory;
 	if (IFileManager::Get().DirectoryExists(*RuntimeDirectory))
 	{
-		const FString BackupDirectory = RuntimeDirectory + TEXT(".bak-")
+		BackupDirectory = RuntimeDirectory + TEXT(".bak-")
 			+ FDateTime::UtcNow().ToString(TEXT("%Y%m%d-%H%M%S"));
 		if (!IFileManager::Get().Move(*BackupDirectory, *RuntimeDirectory, true, true, false, true))
 		{
@@ -256,6 +257,10 @@ void USpeechGenRuntimeInstallerSubsystem::PromoteStagingRuntime()
 
 	if (!IFileManager::Get().Move(*RuntimeDirectory, *StagingDirectory, true, true, false, true))
 	{
+		if (!BackupDirectory.IsEmpty())
+		{
+			IFileManager::Get().Move(*RuntimeDirectory, *BackupDirectory, true, true, false, true);
+		}
 		SetState(ESpeechGenInstallState::Failed, TEXT("Unable to atomically activate the SpeechGen runtime."));
 		return;
 	}

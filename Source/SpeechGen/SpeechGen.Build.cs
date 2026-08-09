@@ -1,4 +1,5 @@
 using UnrealBuildTool;
+using EpicGames.Core;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -46,7 +47,8 @@ public class SpeechGen : ModuleRules
         string RuntimeDirectory = Path.Combine(Target.ProjectFile.Directory.FullName, "Saved", "SpeechGen",
             "Runtimes", "Kokoro", "Win64", RuntimeVersion);
         string HashManifest = Path.Combine(RuntimeDirectory, "manifest.sha256");
-        IReadOnlyList<string> Files = ValidateRuntime(RuntimeDirectory, HashManifest);
+        IReadOnlyList<string> Files = ValidateRuntime(RuntimeDirectory, HashManifest,
+            Path.Combine(PluginDirectory, "Resources", "RuntimeManifest.json"));
 
         foreach (string RelativeFile in Files)
         {
@@ -62,7 +64,8 @@ public class SpeechGen : ModuleRules
             StagedFileType.NonUFS);
     }
 
-    private static IReadOnlyList<string> ValidateRuntime(string RuntimeDirectory, string HashManifest)
+    private static IReadOnlyList<string> ValidateRuntime(string RuntimeDirectory, string HashManifest,
+        string CanonicalManifest)
     {
         if (!File.Exists(HashManifest))
         {
@@ -70,7 +73,7 @@ public class SpeechGen : ModuleRules
                 $"SpeechGen runtime {RuntimeVersion} is not installed. Open the editor and wait for automatic SpeechGen preparation before packaging.");
         }
 
-        List<string> Files = new List<string>();
+        Dictionary<string, string> InstalledHashes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (string Line in File.ReadAllLines(HashManifest))
         {
             string Trimmed = Line.Trim();
@@ -87,6 +90,34 @@ public class SpeechGen : ModuleRules
 
             string ExpectedHash = Trimmed.Substring(0, 64).ToLowerInvariant();
             string RelativeFile = Trimmed.Substring(Separator + 2).Replace('/', Path.DirectorySeparatorChar);
+            if (InstalledHashes.ContainsKey(RelativeFile))
+            {
+                throw new BuildException($"SpeechGen hash manifest contains a duplicate path: {RelativeFile}");
+            }
+            InstalledHashes.Add(RelativeFile, ExpectedHash);
+        }
+
+        if (!File.Exists(CanonicalManifest))
+        {
+            throw new BuildException($"SpeechGen canonical runtime manifest is missing: {CanonicalManifest}");
+        }
+
+        List<string> Files = new List<string>();
+        JsonObject Manifest = JsonObject.Read(new FileReference(CanonicalManifest));
+        if (!Manifest.GetStringField("version").Equals(RuntimeVersion, StringComparison.Ordinal))
+        {
+            throw new BuildException($"SpeechGen canonical runtime version does not match {RuntimeVersion}.");
+        }
+        foreach (JsonObject FileEntry in Manifest.GetObjectArrayField("files"))
+        {
+            string RelativeFile = FileEntry.GetStringField("path").Replace('/', Path.DirectorySeparatorChar);
+            string ExpectedHash = FileEntry.GetStringField("sha256").ToLowerInvariant();
+            if (!InstalledHashes.TryGetValue(RelativeFile, out string InstalledHash)
+                || !InstalledHash.Equals(ExpectedHash, StringComparison.Ordinal))
+            {
+                throw new BuildException($"SpeechGen runtime manifest does not match the pinned package: {RelativeFile}");
+            }
+
             string FullPath = Path.GetFullPath(Path.Combine(RuntimeDirectory, RelativeFile));
             string RuntimeRoot = Path.GetFullPath(RuntimeDirectory) + Path.DirectorySeparatorChar;
             if (!FullPath.StartsWith(RuntimeRoot, StringComparison.OrdinalIgnoreCase) || !File.Exists(FullPath))
@@ -105,9 +136,9 @@ public class SpeechGen : ModuleRules
             Files.Add(RelativeFile);
         }
 
-        if (!Files.Contains(Path.Combine("onnx", "model_quantized.onnx")))
+        if (InstalledHashes.Count != Files.Count)
         {
-            throw new BuildException($"SpeechGen runtime manifest does not contain the Kokoro Q8 model: {HashManifest}");
+			throw new BuildException($"SpeechGen runtime manifest contains files outside the pinned package: {HashManifest}");
         }
 
         Files.Add("manifest.sha256");
