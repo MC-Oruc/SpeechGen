@@ -1,7 +1,6 @@
 #include "SpeechGenEditor/SpeechGenRuntimeInstallerSubsystem.h"
 
 #include "Dom/JsonObject.h"
-#include "GenericPlatform/GenericPlatformMisc.h"
 #include "HttpModule.h"
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
@@ -25,7 +24,7 @@ void USpeechGenRuntimeInstallerSubsystem::Initialize(FSubsystemCollectionBase& C
 		return;
 	}
 
-	if (ValidateInstalledFiles(true, Error))
+	if (IsRuntimeInstalled(Error))
 	{
 		SetState(ESpeechGenInstallState::Installed);
 		return;
@@ -91,7 +90,6 @@ bool USpeechGenRuntimeInstallerSubsystem::LoadManifest(FString& OutError)
 		FManifestFile& File = Files.AddDefaulted_GetRef();
 		File.Path = Object->GetStringField(TEXT("path"));
 		File.Url = Object->GetStringField(TEXT("url"));
-		File.Sha256 = Object->GetStringField(TEXT("sha256")).ToLower();
 		File.Size = static_cast<int64>(Object->GetNumberField(TEXT("size")));
 		TotalBytes += File.Size;
 	}
@@ -107,7 +105,7 @@ bool USpeechGenRuntimeInstallerSubsystem::LoadManifest(FString& OutError)
 	return true;
 }
 
-bool USpeechGenRuntimeInstallerSubsystem::ValidateInstalledFiles(const bool bVerifyHashes, FString& OutError) const
+bool USpeechGenRuntimeInstallerSubsystem::IsRuntimeInstalled(FString& OutError) const
 {
 	for (const FManifestFile& File : Files)
 	{
@@ -118,24 +116,19 @@ bool USpeechGenRuntimeInstallerSubsystem::ValidateInstalledFiles(const bool bVer
 			OutError = FString::Printf(TEXT("Missing or incomplete SpeechGen file: %s"), *File.Path);
 			return false;
 		}
-		if (bVerifyHashes && HashFile(FullPath) != File.Sha256)
-		{
-			OutError = FString::Printf(TEXT("SpeechGen integrity check failed: %s"), *File.Path);
-			return false;
-		}
 	}
 	return true;
 }
 
 void USpeechGenRuntimeInstallerSubsystem::InstallOrUpdate(const bool bForce)
 {
-	if (State == ESpeechGenInstallState::Downloading || State == ESpeechGenInstallState::Checking)
+	if (State == ESpeechGenInstallState::Downloading)
 	{
 		return;
 	}
 
 	FString Error;
-	if (!bForce && ValidateInstalledFiles(true, Error))
+	if (!bForce && IsRuntimeInstalled(Error))
 	{
 		SetState(ESpeechGenInstallState::Installed);
 		return;
@@ -148,18 +141,6 @@ void USpeechGenRuntimeInstallerSubsystem::InstallOrUpdate(const bool bForce)
 	IFileManager::Get().MakeDirectory(*StagingDirectory, true);
 	SetState(ESpeechGenInstallState::Downloading);
 	DownloadNextFile();
-}
-
-void USpeechGenRuntimeInstallerSubsystem::VerifyInstallation()
-{
-	if (State == ESpeechGenInstallState::Downloading)
-	{
-		return;
-	}
-	SetState(ESpeechGenInstallState::Checking);
-	FString Error;
-	SetState(ValidateInstalledFiles(true, Error) ? ESpeechGenInstallState::Installed : ESpeechGenInstallState::Failed,
-		Error);
 }
 
 void USpeechGenRuntimeInstallerSubsystem::DownloadNextFile()
@@ -209,10 +190,10 @@ void USpeechGenRuntimeInstallerSubsystem::HandleDownloadComplete(FHttpRequestPtr
 	}
 
 	const TArray<uint8>& Content = Response->GetContent();
-	if (Content.Num() != File.Size || HashBytes(Content) != File.Sha256)
+	if (Content.Num() != File.Size)
 	{
 		SetState(ESpeechGenInstallState::Failed,
-			FString::Printf(TEXT("SpeechGen download integrity check failed: %s"), *File.Path));
+			FString::Printf(TEXT("SpeechGen download size mismatch: %s"), *File.Path));
 		return;
 	}
 
@@ -231,17 +212,6 @@ void USpeechGenRuntimeInstallerSubsystem::HandleDownloadComplete(FHttpRequestPtr
 
 void USpeechGenRuntimeInstallerSubsystem::PromoteStagingRuntime()
 {
-	FString HashManifest;
-	for (const FManifestFile& File : Files)
-	{
-		HashManifest += File.Sha256 + TEXT("  ") + File.Path + LINE_TERMINATOR;
-	}
-	if (!FFileHelper::SaveStringToFile(HashManifest, *FPaths::Combine(StagingDirectory, TEXT("manifest.sha256"))))
-	{
-		SetState(ESpeechGenInstallState::Failed, TEXT("Unable to write SpeechGen hash manifest."));
-		return;
-	}
-
 	IFileManager::Get().MakeDirectory(*FPaths::GetPath(RuntimeDirectory), true);
 	FString BackupDirectory;
 	if (IFileManager::Get().DirectoryExists(*RuntimeDirectory))
@@ -286,20 +256,4 @@ void USpeechGenRuntimeInstallerSubsystem::RefreshSettings() const
 	Settings->RuntimePath = RuntimeDirectory;
 	Settings->LastError = LastError;
 	Settings->DownloadProgress = State == ESpeechGenInstallState::Installed ? 1.0f : Settings->DownloadProgress;
-}
-
-FString USpeechGenRuntimeInstallerSubsystem::HashBytes(const TConstArrayView64<uint8> Bytes)
-{
-	FSHA256Signature Signature{};
-	if (!FPlatformMisc::GetSHA256Signature(Bytes.GetData(), static_cast<uint32>(Bytes.Num()), Signature))
-	{
-		return FString();
-	}
-	return Signature.ToString().ToLower();
-}
-
-FString USpeechGenRuntimeInstallerSubsystem::HashFile(const FString& Filename)
-{
-	TArray64<uint8> Bytes;
-	return FFileHelper::LoadFileToArray(Bytes, *Filename) ? HashBytes(Bytes) : FString();
 }

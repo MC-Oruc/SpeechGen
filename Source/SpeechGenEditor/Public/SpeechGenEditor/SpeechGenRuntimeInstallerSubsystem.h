@@ -16,27 +16,23 @@ public:
 	virtual void Deinitialize() override;
 
 	void InstallOrUpdate(bool bForce);
-	void VerifyInstallation();
 
 private:
 	struct FManifestFile
 	{
 		FString Path;
 		FString Url;
-		FString Sha256;
 		int64 Size = 0;
 	};
 
 	bool LoadManifest(FString& OutError);
-	bool ValidateInstalledFiles(bool bVerifyHashes, FString& OutError) const;
+	bool IsRuntimeInstalled(FString& OutError) const;
 	void DownloadNextFile();
 	void HandleDownloadProgress(FHttpRequestPtr Request, uint64 BytesSent, uint64 BytesReceived);
 	void HandleDownloadComplete(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bSucceeded);
 	void PromoteStagingRuntime();
 	void SetState(ESpeechGenInstallState State, const FString& Error = FString());
 	void RefreshSettings() const;
-	static FString HashBytes(TConstArrayView64<uint8> Bytes);
-	static FString HashFile(const FString& Filename);
 
 	FString Version;
 	TArray<FManifestFile> Files;

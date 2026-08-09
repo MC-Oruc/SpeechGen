@@ -16,14 +16,6 @@ void USpeechGenEditorSettings::InstallOrUpdate()
 	}
 }
 
-void USpeechGenEditorSettings::VerifyInstallation()
-{
-	if (GEditor)
-	{
-		GEditor->GetEditorSubsystem<USpeechGenRuntimeInstallerSubsystem>()->VerifyInstallation();
-	}
-}
-
 void USpeechGenEditorSettings::Reinstall()
 {
 	if (GEditor)

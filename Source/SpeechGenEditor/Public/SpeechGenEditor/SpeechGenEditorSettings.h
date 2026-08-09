@@ -8,7 +8,6 @@ UENUM()
 enum class ESpeechGenInstallState : uint8
 {
 	NotInstalled,
-	Checking,
 	Downloading,
 	Installed,
 	Failed
@@ -40,9 +39,6 @@ public:
 
 	UFUNCTION(CallInEditor, Category = "Runtime")
 	void InstallOrUpdate();
-
-	UFUNCTION(CallInEditor, Category = "Runtime")
-	void VerifyInstallation();
 
 	UFUNCTION(CallInEditor, Category = "Runtime")
 	void Reinstall();
