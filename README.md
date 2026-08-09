@@ -4,10 +4,10 @@ SpeechGen is an Unreal Engine 5.7 plugin for fully local English speech synthesi
 
 ## Runtime lifecycle
 
-- Opening an editor project with SpeechGen enabled starts verified runtime preparation automatically.
-- Project Settings > Plugins > SpeechGen exposes install/update, verification, and reinstall actions.
+- Opening an editor project with SpeechGen enabled starts runtime preparation automatically.
+- Project Settings > Plugins > SpeechGen exposes install/update and reinstall actions.
 - Downloads are pinned to immutable upstream revisions and atomically promoted into `Saved/SpeechGen/Runtimes/Kokoro/Win64/v1.0-q8` after required file sizes are complete.
-- Game and Shipping builds require a verified installed runtime. Packaging stages it beside the executable as NonUFS data; shipped players never download model files.
+- Game and Shipping builds require a complete installed runtime. Packaging stages it beside the executable as NonUFS data; shipped players never download model files.
 - Runtime files and generated binaries are deliberately excluded from Git and Git LFS.
 
 ## Speech pipeline
