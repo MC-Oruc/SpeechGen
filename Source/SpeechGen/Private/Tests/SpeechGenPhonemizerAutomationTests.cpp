@@ -186,7 +186,7 @@ namespace
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FSpeechGenInferenceTest,
-	"SpeechGen.Runtime.Inference.KokoroFP16",
+	"SpeechGen.Runtime.Inference.KokoroCpuMixed",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FSpeechGenInferenceTest::RunTest(const FString& Parameters)

@@ -22,7 +22,7 @@ class SPEECHGEN_API USpeechGenSubsystem : public UGameInstanceSubsystem
 
 public:
 	static constexpr int32 SampleRate = 24000;
-	static constexpr const TCHAR* RuntimeVersion = TEXT("v1.0-fp16");
+	static constexpr const TCHAR* RuntimeVersion = TEXT("v1.0-cpu-mixed.1");
 
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;

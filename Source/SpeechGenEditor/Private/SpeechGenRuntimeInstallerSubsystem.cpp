@@ -96,10 +96,10 @@ bool USpeechGenRuntimeInstallerSubsystem::LoadManifest(FString& OutError)
 
 	if (Files.IsEmpty() || !Files.ContainsByPredicate([](const FManifestFile& File)
 	{
-		return File.Path == TEXT("onnx/model_fp16.onnx");
+		return File.Path == TEXT("onnx/model_cpu_mixed.onnx");
 	}))
 	{
-		OutError = TEXT("SpeechGen runtime manifest has no Kokoro FP16 model.");
+		OutError = TEXT("SpeechGen runtime manifest has no Kokoro CPU mixed model.");
 		return false;
 	}
 	return true;

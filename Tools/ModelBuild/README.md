@@ -17,8 +17,8 @@ Install `uv`, then obtain the pinned FP32 graph, `kokoro_config.json`, and Speec
 ```powershell
 uv run .\Plugins\SpeechGen\Tools\ModelBuild\build_kokoro_mixed.py `
   --model "$env:TEMP\SpeechGenModelBuild\kokoro-v1.0.onnx" `
-  --voices-dir ".\Saved\SpeechGen\Runtimes\Kokoro\Win64\v1.0-fp16\voices" `
-  --config ".\Saved\SpeechGen\Runtimes\Kokoro\Win64\v1.0-fp16\kokoro_config.json" `
+  --voices-dir ".\Saved\SpeechGen\Runtimes\Kokoro\Win64\v1.0-cpu-mixed.1\voices" `
+  --config ".\Saved\SpeechGen\Runtimes\Kokoro\Win64\v1.0-cpu-mixed.1\kokoro_config.json" `
   --work-dir "$env:TEMP\SpeechGenModelBuild\work" `
   --output "$env:TEMP\SpeechGenModelBuild\kokoro-v1.0.cpu-mixed.onnx"
 ```
@@ -33,8 +33,8 @@ Run the candidate against the exact FP32 source with the ONNX Runtime version us
 uv run .\Plugins\SpeechGen\Tools\ModelBuild\benchmark_kokoro.py `
   --reference "$env:TEMP\SpeechGenModelBuild\kokoro-v1.0.onnx" `
   --candidate "$env:TEMP\SpeechGenModelBuild\kokoro-v1.0.cpu-mixed.onnx" `
-  --voices-dir ".\Saved\SpeechGen\Runtimes\Kokoro\Win64\v1.0-fp16\voices" `
-  --config ".\Saved\SpeechGen\Runtimes\Kokoro\Win64\v1.0-fp16\kokoro_config.json" `
+  --voices-dir ".\Saved\SpeechGen\Runtimes\Kokoro\Win64\v1.0-cpu-mixed.1\voices" `
+  --config ".\Saved\SpeechGen\Runtimes\Kokoro\Win64\v1.0-cpu-mixed.1\kokoro_config.json" `
   --report ".\Saved\SpeechGen\Benchmarks\Kokoro_CPU_Mixed.json" `
   --candidate-wav ".\Saved\SpeechGen\Benchmarks\Kokoro_CPU_Mixed.wav"
 ```

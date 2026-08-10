@@ -3,3 +3,5 @@
 /Saved/
 /.vs/
 *.sln
+__pycache__/
+*.pyc
