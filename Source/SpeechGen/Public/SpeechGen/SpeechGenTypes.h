@@ -76,6 +76,9 @@ struct SPEECHGEN_API FSpeechGenRequest
 
 	UPROPERTY(BlueprintReadWrite, Category = "SpeechGen")
 	FName StyleId;
+
+	UPROPERTY(BlueprintReadWrite, Category = "SpeechGen", AdvancedDisplay)
+	bool bEnableDiagnostics = false;
 };
 
 struct SPEECHGEN_API FSpeechGenResult

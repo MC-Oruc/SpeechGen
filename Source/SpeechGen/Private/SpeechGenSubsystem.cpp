@@ -2,6 +2,7 @@
 
 #include "Async/Async.h"
 #include "HAL/FileManager.h"
+#include "HAL/PlatformTime.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Modules/ModuleManager.h"
@@ -84,12 +85,16 @@ struct USpeechGenSubsystem::FResolvedRequest
 	float Speed = 1.0f;
 	float Gain = 1.0f;
 	float PauseScale = 1.0f;
+	bool bEnableDiagnostics = false;
+	double EnqueuedAtSeconds = 0.0;
+	int32 QueueDepthAtSubmission = 0;
 	TSharedPtr<std::atomic_bool, ESPMode::ThreadSafe> CancellationFlag;
 };
 
 void USpeechGenSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
+	bShuttingDown = false;
 	RuntimeStatus.RuntimePath = ResolveRuntimeDirectory();
 	WorkerPool.Reset(FQueuedThreadPool::Allocate());
 	if (!WorkerPool || !WorkerPool->Create(1, 256 * 1024, TPri_BelowNormal, TEXT("SpeechGenWorker")))
@@ -216,6 +221,10 @@ FGuid USpeechGenSubsystem::SynthesizeAsync(const FSpeechGenRequest& Request)
 	if (RuntimeStatus.State != ESpeechGenRuntimeState::Ready || !ResolveRequest(Request, Resolved, Error))
 	{
 		const FGuid SegmentId = Request.SegmentId.IsValid() ? Request.SegmentId : FGuid::NewGuid();
+		UE_LOG(LogSpeechGen, Warning, TEXT("Rejected speech request Turn=%s Segment=%s: %s"),
+			*Request.TurnId.ToString(EGuidFormats::DigitsWithHyphensLower),
+			*SegmentId.ToString(EGuidFormats::DigitsWithHyphensLower),
+			Error.IsEmpty() ? TEXT("SpeechGen runtime is not ready.") : *Error);
 		OnRequestFailed.Broadcast(Request.TurnId, SegmentId,
 			Error.IsEmpty() ? TEXT("SpeechGen runtime is not ready.") : Error);
 		return SegmentId;
@@ -225,6 +234,16 @@ FGuid USpeechGenSubsystem::SynthesizeAsync(const FSpeechGenRequest& Request)
 		FScopeLock Lock(&CancellationMutex);
 		Resolved.CancellationFlag = MakeShared<std::atomic_bool, ESPMode::ThreadSafe>(false);
 		ActiveCancellationFlags.FindOrAdd(Resolved.TurnId).Add(Resolved.CancellationFlag);
+	}
+	Resolved.EnqueuedAtSeconds = FPlatformTime::Seconds();
+	Resolved.QueueDepthAtSubmission = PendingRequestCount.fetch_add(1, std::memory_order_relaxed) + 1;
+	if (Resolved.bEnableDiagnostics)
+	{
+		UE_LOG(LogSpeechGen, Log,
+			TEXT("Queued request Turn=%s Segment=%s Chars=%d QueueDepth=%d Speed=%.2f Voices=%d"),
+			*Resolved.TurnId.ToString(EGuidFormats::DigitsWithHyphensLower),
+			*Resolved.SegmentId.ToString(EGuidFormats::DigitsWithHyphensLower), Resolved.Text.Len(),
+			Resolved.QueueDepthAtSubmission, Resolved.Speed, Resolved.VoiceBlend.Num());
 	}
 	const FGuid SegmentId = Resolved.SegmentId;
 	TWeakObjectPtr<USpeechGenSubsystem> WeakThis(this);
@@ -265,6 +284,7 @@ bool USpeechGenSubsystem::ResolveRequest(const FSpeechGenRequest& Request, FReso
 	OutRequest.TurnId = Request.TurnId.IsValid() ? Request.TurnId : FGuid::NewGuid();
 	OutRequest.SegmentId = Request.SegmentId.IsValid() ? Request.SegmentId : FGuid::NewGuid();
 	OutRequest.Text = Request.Text;
+	OutRequest.bEnableDiagnostics = Request.bEnableDiagnostics;
 	for (const FSpeechGenVoiceWeight& Voice : Blend)
 	{
 		OutRequest.VoiceBlend.Add({Voice.VoiceId, Voice.Weight});
@@ -274,8 +294,20 @@ bool USpeechGenSubsystem::ResolveRequest(const FSpeechGenRequest& Request, FReso
 
 void USpeechGenSubsystem::ExecuteRequest(FResolvedRequest Request)
 {
+	const double ExecutionStartedAtSeconds = FPlatformTime::Seconds();
+	const double QueueWaitMilliseconds = (ExecutionStartedAtSeconds - Request.EnqueuedAtSeconds) * 1000.0;
 	if (bShuttingDown || IsRequestCancelled(Request) || !ModelInstance || !Phonemizer)
 	{
+		if (Request.bEnableDiagnostics)
+		{
+			UE_LOG(LogSpeechGen, Log,
+				TEXT("Discarded request before inference Turn=%s Segment=%s QueueWaitMs=%.2f ShuttingDown=%s Cancelled=%s RuntimeReady=%s"),
+				*Request.TurnId.ToString(EGuidFormats::DigitsWithHyphensLower),
+				*Request.SegmentId.ToString(EGuidFormats::DigitsWithHyphensLower), QueueWaitMilliseconds,
+				bShuttingDown ? TEXT("true") : TEXT("false"),
+				IsRequestCancelled(Request) ? TEXT("true") : TEXT("false"),
+				ModelInstance && Phonemizer ? TEXT("true") : TEXT("false"));
+		}
 		MarkRequestFinished(Request.TurnId, Request.CancellationFlag);
 		return;
 	}
@@ -283,8 +315,12 @@ void USpeechGenSubsystem::ExecuteRequest(FResolvedRequest Request)
 	TArray<int64> TokenIds;
 	FString Phonemes;
 	FString Error;
+	const double PhonemizeStartedAtSeconds = FPlatformTime::Seconds();
 	if (!Phonemizer->Encode(Request.Text, TokenIds, Phonemes, Error))
 	{
+		UE_LOG(LogSpeechGen, Warning, TEXT("Phonemization failed Turn=%s Segment=%s: %s"),
+			*Request.TurnId.ToString(EGuidFormats::DigitsWithHyphensLower),
+			*Request.SegmentId.ToString(EGuidFormats::DigitsWithHyphensLower), *Error);
 		AsyncTask(ENamedThreads::GameThread, [WeakThis = TWeakObjectPtr<USpeechGenSubsystem>(this), Request, Error]()
 		{
 			if (USpeechGenSubsystem* Subsystem = WeakThis.Get())
@@ -298,11 +334,16 @@ void USpeechGenSubsystem::ExecuteRequest(FResolvedRequest Request)
 		});
 		return;
 	}
+	const double PhonemizeMilliseconds = (FPlatformTime::Seconds() - PhonemizeStartedAtSeconds) * 1000.0;
 
 	const int32 PhonemeCount = TokenIds.Num() - 2;
 	TArray<float> Style;
+	const double StyleStartedAtSeconds = FPlatformTime::Seconds();
 	if (!LoadVoiceStyle(ResolveRuntimeDirectory(), Request.VoiceBlend, PhonemeCount, Style, Error))
 	{
+		UE_LOG(LogSpeechGen, Warning, TEXT("Voice style load failed Turn=%s Segment=%s: %s"),
+			*Request.TurnId.ToString(EGuidFormats::DigitsWithHyphensLower),
+			*Request.SegmentId.ToString(EGuidFormats::DigitsWithHyphensLower), *Error);
 		AsyncTask(ENamedThreads::GameThread, [WeakThis = TWeakObjectPtr<USpeechGenSubsystem>(this), Request, Error]()
 		{
 			if (USpeechGenSubsystem* Subsystem = WeakThis.Get())
@@ -316,6 +357,7 @@ void USpeechGenSubsystem::ExecuteRequest(FResolvedRequest Request)
 		});
 		return;
 	}
+	const double StyleMilliseconds = (FPlatformTime::Seconds() - StyleStartedAtSeconds) * 1000.0;
 
 	TArray<UE::NNE::FTensorShape> InputShapes;
 	TArray<UE::NNE::FTensorBindingCPU> InputBindings;
@@ -347,6 +389,7 @@ void USpeechGenSubsystem::ExecuteRequest(FResolvedRequest Request)
 	Waveform.SetNumUninitialized(TokenIds.Num() * MaxSamplesPerToken);
 	const UE::NNE::FTensorBindingCPU OutputBinding{Waveform.GetData(),
 		static_cast<uint64>(Waveform.Num() * sizeof(float))};
+	const double InferenceStartedAtSeconds = FPlatformTime::Seconds();
 	if (Error.IsEmpty()
 		&& ModelInstance->SetInputTensorShapes(InputShapes) == UE::NNE::IModelInstanceCPU::ESetInputTensorShapesStatus::Ok
 		&& ModelInstance->RunSync(InputBindings, {OutputBinding}) == UE::NNE::IModelInstanceCPU::ERunSyncStatus::Ok)
@@ -365,9 +408,14 @@ void USpeechGenSubsystem::ExecuteRequest(FResolvedRequest Request)
 	{
 		Error = TEXT("Kokoro ONNX inference failed.");
 	}
+	const double InferenceMilliseconds = (FPlatformTime::Seconds() - InferenceStartedAtSeconds) * 1000.0;
 
 	if (!Error.IsEmpty())
 	{
+		UE_LOG(LogSpeechGen, Warning, TEXT("Inference failed Turn=%s Segment=%s Tokens=%d InferenceMs=%.2f: %s"),
+			*Request.TurnId.ToString(EGuidFormats::DigitsWithHyphensLower),
+			*Request.SegmentId.ToString(EGuidFormats::DigitsWithHyphensLower), TokenIds.Num(),
+			InferenceMilliseconds, *Error);
 		AsyncTask(ENamedThreads::GameThread, [WeakThis = TWeakObjectPtr<USpeechGenSubsystem>(this), Request, Error]()
 		{
 			if (USpeechGenSubsystem* Subsystem = WeakThis.Get())
@@ -383,10 +431,18 @@ void USpeechGenSubsystem::ExecuteRequest(FResolvedRequest Request)
 	}
 	if (IsRequestCancelled(Request))
 	{
+		if (Request.bEnableDiagnostics)
+		{
+			UE_LOG(LogSpeechGen, Log,
+				TEXT("Discarded completed inference after cancellation Turn=%s Segment=%s InferenceMs=%.2f"),
+				*Request.TurnId.ToString(EGuidFormats::DigitsWithHyphensLower),
+				*Request.SegmentId.ToString(EGuidFormats::DigitsWithHyphensLower), InferenceMilliseconds);
+		}
 		MarkRequestFinished(Request.TurnId, Request.CancellationFlag);
 		return;
 	}
 
+	const double PcmStartedAtSeconds = FPlatformTime::Seconds();
 	FSpeechGenResult Result;
 	Result.TurnId = Request.TurnId;
 	Result.SegmentId = Request.SegmentId;
@@ -399,6 +455,20 @@ void USpeechGenSubsystem::ExecuteRequest(FResolvedRequest Request)
 	const float BasePause = Request.Text.EndsWith(TEXT("?")) || Request.Text.EndsWith(TEXT("!")) ? 0.18f : 0.12f;
 	Result.PcmSamples.AddZeroed(FMath::RoundToInt(SampleRate * BasePause * Request.PauseScale));
 	Result.DurationSeconds = static_cast<float>(Result.PcmSamples.Num()) / SampleRate;
+	const double PcmMilliseconds = (FPlatformTime::Seconds() - PcmStartedAtSeconds) * 1000.0;
+	if (Request.bEnableDiagnostics)
+	{
+		const double TotalMilliseconds = (FPlatformTime::Seconds() - Request.EnqueuedAtSeconds) * 1000.0;
+		const double RealTimeFactor = Result.DurationSeconds > UE_SMALL_NUMBER
+			? (InferenceMilliseconds / 1000.0) / Result.DurationSeconds
+			: 0.0;
+		UE_LOG(LogSpeechGen, Log,
+			TEXT("Completed request Turn=%s Segment=%s Chars=%d Tokens=%d QueueWaitMs=%.2f PhonemizeMs=%.2f StyleMs=%.2f InferenceMs=%.2f PcmMs=%.2f AudioSec=%.2f RTF=%.3f TotalMs=%.2f"),
+			*Request.TurnId.ToString(EGuidFormats::DigitsWithHyphensLower),
+			*Request.SegmentId.ToString(EGuidFormats::DigitsWithHyphensLower), Request.Text.Len(),
+			TokenIds.Num(), QueueWaitMilliseconds, PhonemizeMilliseconds, StyleMilliseconds,
+			InferenceMilliseconds, PcmMilliseconds, Result.DurationSeconds, RealTimeFactor, TotalMilliseconds);
+	}
 
 	AsyncTask(ENamedThreads::GameThread,
 		[WeakThis = TWeakObjectPtr<USpeechGenSubsystem>(this), Request, Result = MoveTemp(Result)]() mutable
@@ -423,6 +493,8 @@ void USpeechGenSubsystem::CancelTurn(const FGuid TurnId)
 	FScopeLock Lock(&CancellationMutex);
 	if (TArray<TSharedPtr<std::atomic_bool, ESPMode::ThreadSafe>>* Flags = ActiveCancellationFlags.Find(TurnId))
 	{
+		UE_LOG(LogSpeechGen, Log, TEXT("Cancelling speech turn Turn=%s Requests=%d"),
+			*TurnId.ToString(EGuidFormats::DigitsWithHyphensLower), Flags->Num());
 		for (const TSharedPtr<std::atomic_bool, ESPMode::ThreadSafe>& Flag : *Flags)
 		{
 			Flag->store(true, std::memory_order_release);
@@ -450,6 +522,7 @@ bool USpeechGenSubsystem::IsRequestCancelled(const FResolvedRequest& Request)
 void USpeechGenSubsystem::MarkRequestFinished(const FGuid TurnId,
 	const TSharedPtr<std::atomic_bool, ESPMode::ThreadSafe>& CancellationFlag)
 {
+	PendingRequestCount.fetch_sub(1, std::memory_order_relaxed);
 	FScopeLock Lock(&CancellationMutex);
 	TArray<TSharedPtr<std::atomic_bool, ESPMode::ThreadSafe>>* Flags = ActiveCancellationFlags.Find(TurnId);
 	if (!Flags)
@@ -471,5 +544,14 @@ void USpeechGenSubsystem::SetRuntimeState(const ESpeechGenRuntimeState State, co
 	if (State == ESpeechGenRuntimeState::Failed)
 	{
 		UE_LOG(LogSpeechGen, Error, TEXT("%s"), *Error);
+	}
+	else if (State == ESpeechGenRuntimeState::Unavailable)
+	{
+		UE_LOG(LogSpeechGen, Warning, TEXT("%s"), *Error);
+	}
+	else if (State == ESpeechGenRuntimeState::Ready)
+	{
+		UE_LOG(LogSpeechGen, Log, TEXT("SpeechGen runtime ready: %s (%s)."),
+			*RuntimeStatus.Model, *RuntimeStatus.Backend);
 	}
 }

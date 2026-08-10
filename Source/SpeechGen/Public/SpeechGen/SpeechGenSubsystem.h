@@ -65,5 +65,6 @@ private:
 	TUniquePtr<FQueuedThreadPool> WorkerPool;
 	mutable FCriticalSection CancellationMutex;
 	TMap<FGuid, TArray<TSharedPtr<std::atomic_bool, ESPMode::ThreadSafe>>> ActiveCancellationFlags;
+	std::atomic<int32> PendingRequestCount{0};
 	bool bShuttingDown = false;
 };
