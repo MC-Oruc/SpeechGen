@@ -136,7 +136,7 @@ void USpeechGenSubsystem::BeginRuntimeLoad()
 	FModuleManager::Get().LoadModule(TEXT("NNERuntimeORT"));
 
 	const FString RuntimeDirectory = ResolveRuntimeDirectory();
-	const FString ModelPath = FPaths::Combine(RuntimeDirectory, TEXT("onnx/model.onnx"));
+	const FString ModelPath = FPaths::Combine(RuntimeDirectory, TEXT("onnx/model_fp16.onnx"));
 	TArray64<uint8> ModelBytes;
 	if (!FFileHelper::LoadFileToArray(ModelBytes, *ModelPath))
 	{
@@ -168,7 +168,7 @@ void USpeechGenSubsystem::BeginRuntimeLoad()
 			LoadedModel = Runtime->CreateModelCPU(LoadedModelData);
 			if (!LoadedModel)
 			{
-				Error = TEXT("NNERuntimeORTCpu rejected the Kokoro FP32 model.");
+				Error = TEXT("NNERuntimeORTCpu rejected the Kokoro FP16 model.");
 			}
 			else
 			{
@@ -363,7 +363,7 @@ void USpeechGenSubsystem::ExecuteRequest(FResolvedRequest Request)
 	TArray<UE::NNE::FTensorBindingCPU> InputBindings;
 	for (const UE::NNE::FTensorDesc& Desc : ModelInstance->GetInputTensorDescs())
 	{
-		if (Desc.GetName() == TEXT("tokens"))
+		if (Desc.GetName() == TEXT("input_ids"))
 		{
 			InputShapes.Add(UE::NNE::FTensorShape::Make({1, static_cast<uint32>(TokenIds.Num())}));
 			InputBindings.Add({TokenIds.GetData(), static_cast<uint64>(TokenIds.Num() * sizeof(int64))});

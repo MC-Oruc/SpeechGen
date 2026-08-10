@@ -1,12 +1,12 @@
 # SpeechGen
 
-SpeechGen is an Unreal Engine 5.7 plugin for fully local English speech synthesis. It runs Kokoro-82M v1.0 FP32 through Unreal's `NNERuntimeORTCpu`, keeping GPU memory available for the language model.
+SpeechGen is an Unreal Engine 5.7 plugin for fully local English speech synthesis. It runs Kokoro-82M v1.0 FP16 through Unreal's `NNERuntimeORTCpu`, keeping GPU memory available for the language model.
 
 ## Runtime lifecycle
 
 - Opening an editor project with SpeechGen enabled starts runtime preparation automatically.
 - Project Settings > Plugins > SpeechGen exposes install/update and reinstall actions.
-- Downloads are pinned to immutable upstream revisions and atomically promoted into `Saved/SpeechGen/Runtimes/Kokoro/Win64/v1.0-fp32` after required file sizes are complete.
+- Downloads are pinned to immutable upstream revisions and atomically promoted into `Saved/SpeechGen/Runtimes/Kokoro/Win64/v1.0-fp16` after required file sizes are complete.
 - Game and Shipping builds require a complete installed runtime. Packaging stages it beside the executable as NonUFS data; shipped players never download model files.
 - Runtime files and generated binaries are deliberately excluded from Git and Git LFS.
 
@@ -31,10 +31,11 @@ The official Kokoro Python pipeline uses Misaki for richer contextual normalizat
 
 The runtime model and thread policy were selected from local Windows benchmarks on an Intel Core i5-11400H using ONNX Runtime 1.20.1 CPU EP. Times exclude phonemization, request queueing, playback, and Unreal startup.
 
-- The pinned FP32 graph reduced warm synthesis latency by about 2.2x versus the previous dynamic Q8 graph. Its measured process memory after one inference was about 682 MB versus 234 MB for Q8.
+- The pinned FP32 graph reduced warm synthesis latency by about 2.2x versus the previous dynamic Q8 graph. The production FP16 graph preserved that FP32 throughput while reducing its measured process-memory delta from about 710 MB to 426-438 MB and its model file from 310 MB to 156 MB.
 - Four intra-op threads provided the useful latency/CPU balance. For the same short input, FP32 measured 1312 ms at one thread, 833 ms at two threads, and 589 ms at four threads. Six and eight threads produced only marginal further gains on this six-core CPU, while twelve threads regressed.
-- In three fresh-process trials, ORT model/session creation took 854-911 ms, the first short synthesis took 588-738 ms, and ready-to-first-waveform time was 1.50-1.59 seconds. The following synthesis took 568-675 ms.
-- With four threads, representative FP32 segments measured an RTF of 0.414, or about 2.41x realtime. Earlier in-engine dynamic Q8 measurements were RTF 1.06-1.15, or 0.87-0.94x realtime. The measured production throughput therefore improved by roughly 2.6-2.8x.
+- In three fresh-process FP16 trials, ORT model/session creation took 1075-1124 ms and the first short synthesis took 549-691 ms. Model loading starts before dialogue use, so synthesis latency is the player-facing figure once the runtime reports Ready.
+- In a paired ten-run benchmark, FP16 and FP32 measured 2.32x and 2.31x realtime respectively. Earlier in-engine dynamic Q8 measurements were 0.87-0.94x realtime, so FP16 preserves the roughly 2.6x production-throughput improvement while materially reducing memory.
+- FP16 and FP32 waveforms have identical sample counts but are not numerically identical. Runtime validation proves graph compatibility, not perceptual equivalence; representative voices must be auditioned after a model revision.
 - An experimental calibrated static INT8 QOperator graph improved only about 3-4% over dynamic Q8 and the stock quantizer did not complete cleanly because of an unresolved graph initializer. It was rejected instead of adding a custom quantization pipeline.
 - OpenVINO EP trials could not create a real provider session with the tested Windows package/ABI combination and fell back to CPU EP. The project does not carry an unproven OpenVINO dependency.
 - This CPU exposes AVX2 and AVX-512F but not AVX-VNNI or AVX-512 VNNI. VNNI-specific speedup claims therefore do not apply to the measured machine.

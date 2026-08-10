@@ -1,10 +1,10 @@
 {
-  "version": "v1.0-fp32",
+  "version": "v1.0-fp16",
   "files": [
     {
-      "path": "onnx/model.onnx",
-      "url": "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/1939ad2a8e416c0acfeecc08a694d14ef25f2231/onnx/model.onnx",
-      "size": 325532387
+      "path": "onnx/model_fp16.onnx",
+      "url": "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/1939ad2a8e416c0acfeecc08a694d14ef25f2231/onnx/model_fp16.onnx",
+      "size": 163234740
     },
     {
       "path": "kokoro_config.json",
