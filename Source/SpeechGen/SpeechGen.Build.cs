@@ -6,7 +6,7 @@ using System.IO;
 
 public class SpeechGen : ModuleRules
 {
-    private const string RuntimeVersion = "v1.0-q8";
+    private const string RuntimeVersion = "v1.0-fp32";
 
     public SpeechGen(ReadOnlyTargetRules Target) : base(Target)
     {
