@@ -97,7 +97,7 @@ void USpeechGenSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	bShuttingDown = false;
 	RuntimeStatus.RuntimePath = ResolveRuntimeDirectory();
 	WorkerPool.Reset(FQueuedThreadPool::Allocate());
-	if (!WorkerPool || !WorkerPool->Create(1, 256 * 1024, TPri_BelowNormal, TEXT("SpeechGenWorker")))
+	if (!WorkerPool || !WorkerPool->Create(1, 256 * 1024, TPri_Normal, TEXT("SpeechGenWorker")))
 	{
 		WorkerPool.Reset();
 		SetRuntimeState(ESpeechGenRuntimeState::Failed, TEXT("Unable to create SpeechGen worker thread."));
