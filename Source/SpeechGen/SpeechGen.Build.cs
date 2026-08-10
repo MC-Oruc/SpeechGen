@@ -60,6 +60,18 @@ public class SpeechGen : ModuleRules
             Path.Combine("$(TargetOutputDir)", "Licenses", "SpeechGen", "ThirdParty-LICENSES.md"),
             Path.Combine(PluginDirectory, "ThirdParty-LICENSES.md"),
             StagedFileType.NonUFS);
+        RuntimeDependencies.Add(
+            Path.Combine("$(TargetOutputDir)", "Licenses", "SpeechGen", "Apache-2.0.txt"),
+            Path.Combine(PluginDirectory, "Licenses", "Apache-2.0.txt"),
+            StagedFileType.NonUFS);
+        RuntimeDependencies.Add(
+            Path.Combine("$(TargetOutputDir)", "Licenses", "SpeechGen", "CMUdict-LICENSE.txt"),
+            Path.Combine(PluginDirectory, "Licenses", "CMUdict-LICENSE.txt"),
+            StagedFileType.NonUFS);
+        RuntimeDependencies.Add(
+            Path.Combine("$(TargetOutputDir)", "Licenses", "SpeechGen", "Flite-COPYING.txt"),
+            Path.Combine(PluginDirectory, "ThirdParty", "flite", "COPYING"),
+            StagedFileType.NonUFS);
     }
 
     private static IReadOnlyList<string> CollectRuntimeFiles(string RuntimeDirectory, string CanonicalManifest)

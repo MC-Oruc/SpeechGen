@@ -20,12 +20,12 @@ The runtime does not download a community alternative model. The following proje
 - https://github.com/thewh1teagle/kokoro-onnx
 - https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX
 
-Apache License 2.0: https://www.apache.org/licenses/LICENSE-2.0
+The complete Apache License 2.0 text is distributed beside this notice as `Apache-2.0.txt`.
 
 ## Flite 2.2 CMU letter-to-sound data
 
 - Source: https://github.com/festvox/flite/tree/v2.2
-- License file: `ThirdParty/flite/COPYING`
+- License file: `Flite-COPYING.txt` in packaged distributions and `ThirdParty/flite/COPYING` in source form.
 - Copyright (c) 1999-2017 Language Technologies Institute, Carnegie Mellon University.
 
 SpeechGen compiles only the CMU letter-to-sound model and rules required for unknown English words. The complete upstream notice remains available in the pinned Flite submodule.
@@ -34,7 +34,8 @@ SpeechGen compiles only the CMU letter-to-sound model and rules required for unk
 
 - Source: https://github.com/cmusphinx/cmudict
 - Copyright (c) 1993-2015 Carnegie Mellon University.
-- License: permissive CMU redistribution license supplied by the upstream project.
+- License: permissive CMU redistribution license supplied by the upstream project. The complete terms are
+  distributed beside this notice as `CMUdict-LICENSE.txt`.
 
 The dictionary is downloaded from an immutable revision and distributed as runtime data. The upstream license and project history are available at https://github.com/cmusphinx/cmudict/blob/master/LICENSE.
 
