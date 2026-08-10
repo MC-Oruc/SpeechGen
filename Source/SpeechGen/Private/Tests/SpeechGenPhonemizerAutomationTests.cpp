@@ -164,7 +164,9 @@ namespace
 			}
 			Test.TestFalse(TEXT("Kokoro language inference returns PCM samples"), PcmSamples.IsEmpty());
 			Test.TestTrue(TEXT("Kokoro language inference returns a positive duration"), DurationSeconds > 0.0f);
+			Test.TestFalse(TEXT("Kokoro language inference preserves synthesized phonemes"), Phonemes.IsEmpty());
 			PcmSamples.Reset();
+			Phonemes.Reset();
 			DurationSeconds = 0.0f;
 			bReceivedResult = false;
 			bSubmitted = false;
@@ -185,6 +187,7 @@ namespace
 				return;
 			}
 			PcmSamples = Result.PcmSamples;
+			Phonemes = Result.Phonemes;
 			DurationSeconds = Result.DurationSeconds;
 			bReceivedResult = true;
 		}
@@ -242,6 +245,7 @@ namespace
 		FDelegateHandle FailedHandle;
 		FGuid ExpectedSegmentId;
 		TArray<int16> PcmSamples;
+		FString Phonemes;
 		double StartedAt = 0.0;
 		float DurationSeconds = 0.0f;
 		int32 CurrentCase = 0;

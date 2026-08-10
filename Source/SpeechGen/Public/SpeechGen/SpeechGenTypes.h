@@ -121,6 +121,8 @@ struct SPEECHGEN_API FSpeechGenResult
 
 	FGuid SegmentId;
 
+	FString Phonemes;
+
 	TArray<int16> PcmSamples;
 
 	int32 SampleRate = 24000;

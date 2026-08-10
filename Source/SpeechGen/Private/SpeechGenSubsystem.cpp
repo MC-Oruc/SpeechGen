@@ -442,6 +442,7 @@ void USpeechGenSubsystem::ExecuteRequest(FResolvedRequest Request)
 	FSpeechGenResult Result;
 	Result.TurnId = Request.TurnId;
 	Result.SegmentId = Request.SegmentId;
+	Result.Phonemes = MoveTemp(Phonemes);
 	Result.SampleRate = SampleRate;
 	Result.PcmSamples.Reserve(Waveform.Num() + SampleRate / 2);
 	for (const float Sample : Waveform)
