@@ -50,7 +50,11 @@ bool FSpeechGenPhonemizerTest::RunTest(const FString& Parameters)
 		{ESpeechGenLanguage::Hindi, TEXT("नमस्ते दुनिया।")},
 		{ESpeechGenLanguage::Italian, TEXT("Ciao, come stai?")},
 		{ESpeechGenLanguage::BrazilianPortuguese, TEXT("Olá, como você está?")},
-		{ESpeechGenLanguage::MandarinChinese, TEXT("你好，世界！")}
+		{ESpeechGenLanguage::MandarinChinese, TEXT("你好，世界！")},
+		{ESpeechGenLanguage::TurkishExperimental, TEXT("Merhaba, bugün nasılsın?")},
+		{ESpeechGenLanguage::AzerbaijaniExperimental, TEXT("Salam, necəsən?")},
+		{ESpeechGenLanguage::GermanExperimental, TEXT("Hallo, wie geht es dir?")},
+		{ESpeechGenLanguage::DutchExperimental, TEXT("Hallo, hoe gaat het?")}
 	};
 	for (const FCase& TestCase : Cases)
 	{
@@ -219,13 +223,17 @@ namespace
 		}
 
 		FAutomationTestBase& Test;
-		const FInferenceCase Cases[6] = {
+		const FInferenceCase Cases[10] = {
 			{ESpeechGenLanguage::English, TEXT("af_heart"), TEXT("The voice is ready.")},
 			{ESpeechGenLanguage::Spanish, TEXT("ef_dora"), TEXT("Hola, cómo estás?")},
 			{ESpeechGenLanguage::Hindi, TEXT("hf_alpha"), TEXT("नमस्ते दुनिया।")},
 			{ESpeechGenLanguage::Italian, TEXT("if_sara"), TEXT("Ciao, come stai?")},
 			{ESpeechGenLanguage::BrazilianPortuguese, TEXT("pf_dora"), TEXT("Olá, como você está?")},
-			{ESpeechGenLanguage::MandarinChinese, TEXT("zf_xiaobei"), TEXT("你好，世界！")}
+			{ESpeechGenLanguage::MandarinChinese, TEXT("zf_xiaobei"), TEXT("你好，世界！")},
+			{ESpeechGenLanguage::TurkishExperimental, TEXT("if_sara"), TEXT("Merhaba, bugün nasılsın?")},
+			{ESpeechGenLanguage::AzerbaijaniExperimental, TEXT("if_sara"), TEXT("Salam, necəsən?")},
+			{ESpeechGenLanguage::GermanExperimental, TEXT("bf_emma"), TEXT("Hallo, wie geht es dir?")},
+			{ESpeechGenLanguage::DutchExperimental, TEXT("bf_emma"), TEXT("Hallo, hoe gaat het?")}
 		};
 		TStrongObjectPtr<UGameInstance> GameInstance;
 		TStrongObjectPtr<USpeechGenVoiceProfile> VoiceProfile;

@@ -18,6 +18,10 @@ private:
 	static FString PhonemizeItalian(const FString& Text);
 	static FString PhonemizePortuguese(const FString& Text);
 	static FString PhonemizeHindi(const FString& Text);
+	static FString PhonemizeTurkish(const FString& Text);
+	static FString PhonemizeAzerbaijani(const FString& Text);
+	static FString PhonemizeGerman(const FString& Text);
+	static FString PhonemizeDutch(const FString& Text);
 
 	FString RuntimeDirectory;
 	mutable TMap<FString, FString> MandarinDictionary;

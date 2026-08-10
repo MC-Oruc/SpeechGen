@@ -24,6 +24,16 @@ Supported profile languages and voice IDs:
 - Brazilian Portuguese: `pf_dora`, `pm_alex`, `pm_santa`.
 - Mandarin Chinese: `zf_xiaobei`, `zf_xiaoni`, `zf_xiaoxiao`, `zf_xiaoyi`, `zm_yunjian`, `zm_yunxi`, `zm_yunxia`, `zm_yunyang`.
 
+Experimental phoneme-guidance languages require no additional model or voice data:
+
+- Turkish and Azerbaijani use native Turkic letter, soft-consonant, vowel, and final-stress rules. The inference tests use `if_sara` as the carrier voice.
+- German uses native digraph, umlaut, initial-cluster, and final-devoicing rules. The inference test uses `bf_emma` as the carrier voice.
+- Dutch uses native digraph, long-vowel, and consonant rules. The inference test uses `bf_emma` as the carrier voice.
+
+Experimental profiles may select any installed supported voice as a timbre carrier. This does not claim native voice
+training or native prosody; the frontend constrains text to valid Kokoro IPA so unsupported graphemes are never sent
+to the model. The enum display names retain the `Experimental` label in authored assets and UI.
+
 Language selection is explicit; SpeechGen does not guess from the input text. English uses native CMUdict plus Flite CMU letter-to-sound rules. Spanish, Hindi, Italian, and Brazilian Portuguese use native deterministic language rules. Mandarin uses a phrase-first IPA dictionary generated from pinned permissive sources and loaded only when Mandarin is requested. ASCII digits are pronounced digit by digit in the selected language. No Python, eSpeak, Misaki, OpenPhonemizer, or external process is loaded at runtime.
 
 ### Misaki difference

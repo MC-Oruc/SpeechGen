@@ -275,6 +275,187 @@ namespace
 		return Result;
 	}
 
+	bool IsTurkicVowel(const TCHAR Character)
+	{
+		return FString(TEXT("aeıioöuüəâîû")).Contains(FString::Chr(Character));
+	}
+
+	FString TurkicWord(const FString& Word, const bool bAzerbaijani)
+	{
+		int32 Stress = INDEX_NONE;
+		for (int32 Index = 0; Index < Word.Len(); ++Index)
+		{
+			if (IsTurkicVowel(Word[Index]))
+			{
+				Stress = Index;
+			}
+		}
+
+		FString Result;
+		for (int32 Index = 0; Index < Word.Len(); ++Index)
+		{
+			const TCHAR Character = Word[Index];
+			const TCHAR Next = Index + 1 < Word.Len() ? Word[Index + 1] : 0;
+			if (Index == Stress) Result += TEXT("ˈ");
+			if (Character == TEXT('s') && Next == TEXT('h')) { Result += TEXT("ʃ"); ++Index; }
+			else if (Character == TEXT('c') && Next == TEXT('h')) { Result += TEXT("ʧ"); ++Index; }
+			else
+			{
+				switch (Character)
+				{
+				case TEXT('a'): case TEXT('â'): Result += TEXT("a"); break;
+				case TEXT('e'): Result += TEXT("e"); break;
+				case TEXT('ə'): Result += TEXT("æ"); break;
+				case TEXT('ı'): Result += TEXT("ɯ"); break;
+				case TEXT('i'): case TEXT('î'): Result += TEXT("i"); break;
+				case TEXT('o'): Result += TEXT("o"); break;
+				case TEXT('ö'): Result += TEXT("ø"); break;
+				case TEXT('u'): case TEXT('û'): Result += TEXT("u"); break;
+				case TEXT('ü'): Result += TEXT("y"); break;
+				case TEXT('b'): Result += TEXT("b"); break;
+				case TEXT('c'): Result += TEXT("ʤ"); break;
+				case TEXT('ç'): Result += TEXT("ʧ"); break;
+				case TEXT('d'): Result += TEXT("d"); break;
+				case TEXT('f'): Result += TEXT("f"); break;
+				case TEXT('g'): Result += bAzerbaijani ? TEXT("ɟ") : TEXT("ɡ"); break;
+				case TEXT('ğ'):
+					if (!Result.IsEmpty() && IsTurkicVowel(Index > 0 ? Word[Index - 1] : 0)) Result += TEXT("ː");
+					break;
+				case TEXT('h'): Result += TEXT("h"); break;
+				case TEXT('x'): Result += bAzerbaijani ? TEXT("x") : TEXT("ks"); break;
+				case TEXT('j'): Result += TEXT("ʒ"); break;
+				case TEXT('k'): Result += TEXT("k"); break;
+				case TEXT('q'): Result += bAzerbaijani ? TEXT("ɡ") : TEXT("k"); break;
+				case TEXT('l'): Result += TEXT("l"); break;
+				case TEXT('m'): Result += TEXT("m"); break;
+				case TEXT('n'): Result += TEXT("n"); break;
+				case TEXT('p'): Result += TEXT("p"); break;
+				case TEXT('r'): Result += TEXT("r"); break;
+				case TEXT('s'): Result += TEXT("s"); break;
+				case TEXT('ş'): Result += TEXT("ʃ"); break;
+				case TEXT('t'): Result += TEXT("t"); break;
+				case TEXT('v'): case TEXT('w'): Result += TEXT("v"); break;
+				case TEXT('y'): Result += TEXT("j"); break;
+				case TEXT('z'): Result += TEXT("z"); break;
+				default: break;
+				}
+			}
+		}
+		return Result;
+	}
+
+	bool IsGermanVowel(const TCHAR Character)
+	{
+		return FString(TEXT("aeiouäöü")).Contains(FString::Chr(Character));
+	}
+
+	FString GermanWord(const FString& Word)
+	{
+		int32 Stress = INDEX_NONE;
+		for (int32 Index = 0; Index < Word.Len(); ++Index)
+		{
+			if (IsGermanVowel(Word[Index])) { Stress = Index; break; }
+		}
+		FString Result;
+		for (int32 Index = 0; Index < Word.Len(); ++Index)
+		{
+			const TCHAR Character = Word[Index];
+			const TCHAR Next = Index + 1 < Word.Len() ? Word[Index + 1] : 0;
+			const TCHAR After = Index + 2 < Word.Len() ? Word[Index + 2] : 0;
+			if (Index == Stress) Result += TEXT("ˈ");
+			if (Character == TEXT('s') && Next == TEXT('c') && After == TEXT('h')) { Result += TEXT("ʃ"); Index += 2; }
+			else if (Index == 0 && Character == TEXT('s') && Next == TEXT('p')) { Result += TEXT("ʃp"); ++Index; }
+			else if (Index == 0 && Character == TEXT('s') && Next == TEXT('t')) { Result += TEXT("ʃt"); ++Index; }
+			else if (Character == TEXT('c') && Next == TEXT('h'))
+			{ Result += Index > 0 && FString(TEXT("aou")).Contains(FString::Chr(Word[Index - 1])) ? TEXT("x") : TEXT("ç"); ++Index; }
+			else if (Character == TEXT('e') && Next == TEXT('i')) { Result += TEXT("aɪ"); ++Index; }
+			else if (Character == TEXT('i') && Next == TEXT('e')) { Result += TEXT("iː"); ++Index; }
+			else if ((Character == TEXT('e') || Character == TEXT('ä')) && Next == TEXT('u')) { Result += TEXT("ɔɪ"); ++Index; }
+			else if (Character == TEXT('a') && Next == TEXT('u')) { Result += TEXT("aʊ"); ++Index; }
+			else if (Character == TEXT('n') && Next == TEXT('g')) { Result += TEXT("ŋ"); ++Index; }
+			else if (Character == TEXT('p') && Next == TEXT('f')) { Result += TEXT("pf"); ++Index; }
+			else if (Character == TEXT('q') && Next == TEXT('u')) { Result += TEXT("kv"); ++Index; }
+			else
+			{
+				switch (Character)
+				{
+				case TEXT('a'): Result += TEXT("a"); break; case TEXT('ä'): Result += TEXT("ɛ"); break;
+				case TEXT('e'): Result += TEXT("e"); break; case TEXT('i'): Result += TEXT("ɪ"); break;
+				case TEXT('o'): Result += TEXT("o"); break; case TEXT('ö'): Result += TEXT("ø"); break;
+				case TEXT('u'): Result += TEXT("u"); break; case TEXT('ü'): Result += TEXT("y"); break;
+				case TEXT('b'): Result += Index == Word.Len() - 1 ? TEXT("p") : TEXT("b"); break;
+				case TEXT('c'): case TEXT('k'): Result += TEXT("k"); break;
+				case TEXT('d'): Result += Index == Word.Len() - 1 ? TEXT("t") : TEXT("d"); break;
+				case TEXT('f'): case TEXT('v'): Result += TEXT("f"); break;
+				case TEXT('g'): Result += Index == Word.Len() - 1 ? TEXT("k") : TEXT("ɡ"); break;
+				case TEXT('h'): Result += TEXT("h"); break; case TEXT('j'): Result += TEXT("j"); break;
+				case TEXT('l'): Result += TEXT("l"); break; case TEXT('m'): Result += TEXT("m"); break;
+				case TEXT('n'): Result += TEXT("n"); break; case TEXT('p'): Result += TEXT("p"); break;
+				case TEXT('r'): Result += TEXT("ʁ"); break; case TEXT('s'): case TEXT('ß'): Result += TEXT("s"); break;
+				case TEXT('t'): Result += TEXT("t"); break; case TEXT('w'): Result += TEXT("v"); break;
+				case TEXT('x'): Result += TEXT("ks"); break; case TEXT('z'): Result += TEXT("ʦ"); break;
+				default: break;
+				}
+			}
+		}
+		return Result;
+	}
+
+	bool IsDutchVowel(const TCHAR Character)
+	{
+		return FString(TEXT("aeiouyéëïöü")).Contains(FString::Chr(Character));
+	}
+
+	FString DutchWord(const FString& Word)
+	{
+		int32 Stress = INDEX_NONE;
+		for (int32 Index = 0; Index < Word.Len(); ++Index)
+		{
+			if (IsDutchVowel(Word[Index])) { Stress = Index; break; }
+		}
+		FString Result;
+		for (int32 Index = 0; Index < Word.Len(); ++Index)
+		{
+			const TCHAR Character = Word[Index];
+			const TCHAR Next = Index + 1 < Word.Len() ? Word[Index + 1] : 0;
+			const TCHAR After = Index + 2 < Word.Len() ? Word[Index + 2] : 0;
+			if (Index == Stress) Result += TEXT("ˈ");
+			if (Character == TEXT('s') && Next == TEXT('c') && After == TEXT('h')) { Result += TEXT("sx"); Index += 2; }
+			else if ((Character == TEXT('i') && Next == TEXT('j')) || (Character == TEXT('e') && Next == TEXT('i')))
+			{ Result += TEXT("ɛi"); ++Index; }
+			else if (Character == TEXT('u') && Next == TEXT('i')) { Result += TEXT("œy"); ++Index; }
+			else if (Character == TEXT('o') && Next == TEXT('e')) { Result += TEXT("u"); ++Index; }
+			else if ((Character == TEXT('o') && Next == TEXT('u')) || (Character == TEXT('a') && Next == TEXT('u')))
+			{ Result += TEXT("ɑu"); ++Index; }
+			else if (Character == Next && FString(TEXT("aeou")).Contains(FString::Chr(Character)))
+			{ Result.AppendChar(Character == TEXT('u') ? TEXT('y') : Character); Result += TEXT("ː"); ++Index; }
+			else if (Character == TEXT('n') && Next == TEXT('g')) { Result += TEXT("ŋ"); ++Index; }
+			else if (Character == TEXT('s') && Next == TEXT('j')) { Result += TEXT("ʃ"); ++Index; }
+			else if (Character == TEXT('t') && Next == TEXT('j')) { Result += TEXT("ʧ"); ++Index; }
+			else
+			{
+				switch (Character)
+				{
+				case TEXT('a'): Result += TEXT("ɑ"); break; case TEXT('e'): case TEXT('é'): Result += TEXT("e"); break;
+				case TEXT('i'): case TEXT('ï'): Result += TEXT("ɪ"); break; case TEXT('o'): case TEXT('ö'): Result += TEXT("ɔ"); break;
+				case TEXT('u'): case TEXT('ü'): Result += TEXT("y"); break; case TEXT('y'): Result += TEXT("i"); break;
+				case TEXT('b'): Result += TEXT("b"); break; case TEXT('c'): Result += FString(TEXT("eiy")).Contains(FString::Chr(Next)) ? TEXT("s") : TEXT("k"); break;
+				case TEXT('d'): Result += TEXT("d"); break; case TEXT('f'): Result += TEXT("f"); break;
+				case TEXT('g'): case TEXT('h'): Result += Character == TEXT('g') ? TEXT("x") : TEXT("h"); break;
+				case TEXT('j'): Result += TEXT("j"); break; case TEXT('k'): Result += TEXT("k"); break;
+				case TEXT('l'): Result += TEXT("l"); break; case TEXT('m'): Result += TEXT("m"); break;
+				case TEXT('n'): Result += TEXT("n"); break; case TEXT('p'): Result += TEXT("p"); break;
+				case TEXT('q'): Result += TEXT("k"); break; case TEXT('r'): Result += TEXT("r"); break;
+				case TEXT('s'): Result += TEXT("s"); break; case TEXT('t'): Result += TEXT("t"); break;
+				case TEXT('v'): Result += TEXT("v"); break; case TEXT('w'): Result += TEXT("ʋ"); break;
+				case TEXT('x'): Result += TEXT("ks"); break; case TEXT('z'): Result += TEXT("z"); break;
+				default: break;
+				}
+			}
+		}
+		return Result;
+	}
+
 	FString HindiConsonant(const TCHAR Character)
 	{
 		switch (Character)
@@ -374,6 +555,18 @@ bool FKokoroLanguageFrontend::Phonemize(const ESpeechGenLanguage Language, const
 	case ESpeechGenLanguage::BrazilianPortuguese:
 		OutPhonemes = PhonemizePortuguese(Text);
 		break;
+	case ESpeechGenLanguage::TurkishExperimental:
+		OutPhonemes = PhonemizeTurkish(Text);
+		break;
+	case ESpeechGenLanguage::AzerbaijaniExperimental:
+		OutPhonemes = PhonemizeAzerbaijani(Text);
+		break;
+	case ESpeechGenLanguage::GermanExperimental:
+		OutPhonemes = PhonemizeGerman(Text);
+		break;
+	case ESpeechGenLanguage::DutchExperimental:
+		OutPhonemes = PhonemizeDutch(Text);
+		break;
 	default:
 		OutError = TEXT("The requested language requires the English frontend.");
 		return false;
@@ -405,6 +598,46 @@ FString FKokoroLanguageFrontend::PhonemizePortuguese(const FString& Text)
 	static const TCHAR* Digits[] = {TEXT("zero"), TEXT("um"), TEXT("dois"), TEXT("três"), TEXT("quatro"),
 		TEXT("cinco"), TEXT("seis"), TEXT("sete"), TEXT("oito"), TEXT("nove")};
 	return TransformWords(ExpandDigits(Text, Digits), PortugueseWord);
+}
+
+FString FKokoroLanguageFrontend::PhonemizeTurkish(const FString& Text)
+{
+	static const TCHAR* Digits[] = {TEXT("sıfır"), TEXT("bir"), TEXT("iki"), TEXT("üç"), TEXT("dört"),
+		TEXT("beş"), TEXT("altı"), TEXT("yedi"), TEXT("sekiz"), TEXT("dokuz")};
+	FString TurkishText = Text;
+	TurkishText.ReplaceInline(TEXT("I"), TEXT("ı"));
+	TurkishText.ReplaceInline(TEXT("İ"), TEXT("i"));
+	return TransformWords(ExpandDigits(TurkishText, Digits), [](const FString& Word)
+	{
+		return TurkicWord(Word, false);
+	});
+}
+
+FString FKokoroLanguageFrontend::PhonemizeAzerbaijani(const FString& Text)
+{
+	static const TCHAR* Digits[] = {TEXT("sıfır"), TEXT("bir"), TEXT("iki"), TEXT("üç"), TEXT("dörd"),
+		TEXT("beş"), TEXT("altı"), TEXT("yeddi"), TEXT("səkkiz"), TEXT("doqquz")};
+	FString AzerbaijaniText = Text;
+	AzerbaijaniText.ReplaceInline(TEXT("I"), TEXT("ı"));
+	AzerbaijaniText.ReplaceInline(TEXT("İ"), TEXT("i"));
+	return TransformWords(ExpandDigits(AzerbaijaniText, Digits), [](const FString& Word)
+	{
+		return TurkicWord(Word, true);
+	});
+}
+
+FString FKokoroLanguageFrontend::PhonemizeGerman(const FString& Text)
+{
+	static const TCHAR* Digits[] = {TEXT("null"), TEXT("eins"), TEXT("zwei"), TEXT("drei"), TEXT("vier"),
+		TEXT("fünf"), TEXT("sechs"), TEXT("sieben"), TEXT("acht"), TEXT("neun")};
+	return TransformWords(ExpandDigits(Text, Digits), GermanWord);
+}
+
+FString FKokoroLanguageFrontend::PhonemizeDutch(const FString& Text)
+{
+	static const TCHAR* Digits[] = {TEXT("nul"), TEXT("een"), TEXT("twee"), TEXT("drie"), TEXT("vier"),
+		TEXT("vijf"), TEXT("zes"), TEXT("zeven"), TEXT("acht"), TEXT("negen")};
+	return TransformWords(ExpandDigits(Text, Digits), DutchWord);
 }
 
 FString FKokoroLanguageFrontend::PhonemizeHindi(const FString& Text)

@@ -29,6 +29,14 @@ namespace
 			return {};
 		}
 	}
+
+	bool IsExperimentalLanguage(const ESpeechGenLanguage Language)
+	{
+		return Language == ESpeechGenLanguage::TurkishExperimental
+			|| Language == ESpeechGenLanguage::AzerbaijaniExperimental
+			|| Language == ESpeechGenLanguage::GermanExperimental
+			|| Language == ESpeechGenLanguage::DutchExperimental;
+	}
 }
 
 USpeechGenVoiceProfile::USpeechGenVoiceProfile()
@@ -81,7 +89,7 @@ bool USpeechGenVoiceProfile::ValidateVoiceBlend(const TArray<FSpeechGenVoiceWeig
 			OutError = FString::Printf(TEXT("Voice '%s' is not supported by SpeechGen."), *Voice.VoiceId.ToString());
 			return false;
 		}
-		if (VoiceLanguage.GetValue() != Language)
+		if (!IsExperimentalLanguage(Language) && VoiceLanguage.GetValue() != Language)
 		{
 			OutError = FString::Printf(TEXT("Voice '%s' does not match the voice profile language."),
 				*Voice.VoiceId.ToString());

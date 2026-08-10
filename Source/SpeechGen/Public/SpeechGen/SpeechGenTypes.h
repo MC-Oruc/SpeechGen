@@ -29,7 +29,11 @@ enum class ESpeechGenLanguage : uint8
 	Spanish,
 	Hindi,
 	Italian,
-	BrazilianPortuguese
+	BrazilianPortuguese,
+	TurkishExperimental UMETA(DisplayName = "Turkish (Experimental)"),
+	AzerbaijaniExperimental UMETA(DisplayName = "Azerbaijani (Experimental)"),
+	GermanExperimental UMETA(DisplayName = "German (Experimental)"),
+	DutchExperimental UMETA(DisplayName = "Dutch (Experimental)")
 };
 
 USTRUCT(BlueprintType)
