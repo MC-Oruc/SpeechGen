@@ -21,6 +21,17 @@ enum class ESpeechGenStyleMode : uint8
 	Directed
 };
 
+UENUM(BlueprintType)
+enum class ESpeechGenLanguage : uint8
+{
+	English,
+	MandarinChinese,
+	Spanish,
+	Hindi,
+	Italian,
+	BrazilianPortuguese
+};
+
 USTRUCT(BlueprintType)
 struct SPEECHGEN_API FSpeechGenVoiceWeight
 {
@@ -109,7 +120,7 @@ struct SPEECHGEN_API FSpeechGenRuntimeStatus
 	FString Backend = TEXT("ONNX Runtime CPU");
 
 	UPROPERTY(BlueprintReadOnly, Category = "SpeechGen")
-	FString Phonemizer = TEXT("Flite CMU LTS + CMUdict");
+	FString Phonemizer = TEXT("Native multilingual G2P");
 
 	UPROPERTY(BlueprintReadOnly, Category = "SpeechGen")
 	FString RuntimePath;

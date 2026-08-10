@@ -1,5 +1,7 @@
 #include "Phonemizer/KokoroPhonemizer.h"
 
+#include "Phonemizer/KokoroLanguageFrontend.h"
+
 #include "Dom/JsonObject.h"
 #include "HAL/FileManager.h"
 #include "Misc/FileHelper.h"
@@ -72,6 +74,8 @@ namespace
 	}
 }
 
+FKokoroPhonemizer::~FKokoroPhonemizer() = default;
+
 bool FKokoroPhonemizer::Initialize(const FString& RuntimeDirectory, FString& OutError)
 {
 	Dictionary.Reset();
@@ -140,43 +144,51 @@ bool FKokoroPhonemizer::Initialize(const FString& RuntimeDirectory, FString& Out
 	{
 		Vocab.Add(Pair.Key, static_cast<int64>(Pair.Value->AsNumber()));
 	}
+	LanguageFrontend = MakeUnique<FKokoroLanguageFrontend>(RuntimeDirectory);
 
 	return Dictionary.Num() > 100000 && Vocab.Num() > 100;
 }
 
-bool FKokoroPhonemizer::Encode(const FString& Text, TArray<int64>& OutTokenIds, FString& OutPhonemes,
-	FString& OutError) const
+bool FKokoroPhonemizer::Encode(const ESpeechGenLanguage Language, const FString& Text,
+	TArray<int64>& OutTokenIds, FString& OutPhonemes, FString& OutError) const
 {
 	OutTokenIds.Reset();
 	OutPhonemes.Reset();
 
-	const FString Normalized = NormalizeText(Text);
-	FString Word;
-	TArray<FString> Phones;
-	for (int32 Index = 0; Index <= Normalized.Len(); ++Index)
+	if (Language == ESpeechGenLanguage::English)
 	{
-		const TCHAR Character = Index < Normalized.Len() ? Normalized[Index] : TEXT(' ');
-		if (IsWordCharacter(Character))
+		const FString Normalized = NormalizeEnglishText(Text);
+		FString Word;
+		TArray<FString> Phones;
+		for (int32 Index = 0; Index <= Normalized.Len(); ++Index)
 		{
-			Word.AppendChar(Character);
-			continue;
-		}
+			const TCHAR Character = Index < Normalized.Len() ? Normalized[Index] : TEXT(' ');
+			if (IsWordCharacter(Character))
+			{
+				Word.AppendChar(Character);
+				continue;
+			}
 
-		if (!Word.IsEmpty())
-		{
-			AppendWordPhones(Word, Dictionary, Phones);
-			Word.Reset();
-			Phones.Add(TEXT(" "));
-		}
+			if (!Word.IsEmpty())
+			{
+				AppendWordPhones(Word, Dictionary, Phones);
+				Word.Reset();
+				Phones.Add(TEXT(" "));
+			}
 
-		if (FString(TEXT(";:,.!?\"—…()\u201c\u201d")).Contains(FString::Chr(Character)))
-		{
-			Phones.Add(FString::Chr(Character));
-			Phones.Add(TEXT(" "));
+			if (FString(TEXT(";:,.!?\"—…()\u201c\u201d")).Contains(FString::Chr(Character)))
+			{
+				Phones.Add(FString::Chr(Character));
+				Phones.Add(TEXT(" "));
+			}
 		}
+		OutPhonemes = ArpabetToIpa(Phones).TrimStartAndEnd();
+	}
+	else if (!LanguageFrontend || !LanguageFrontend->Phonemize(Language, Text, OutPhonemes, OutError))
+	{
+		return false;
 	}
 
-	OutPhonemes = ArpabetToIpa(Phones).TrimStartAndEnd();
 	OutTokenIds.Add(0);
 	for (int32 Index = 0; Index < OutPhonemes.Len(); ++Index)
 	{
@@ -193,7 +205,7 @@ bool FKokoroPhonemizer::Encode(const FString& Text, TArray<int64>& OutTokenIds, 
 
 	if (OutTokenIds.Num() < 3)
 	{
-		OutError = TEXT("Text did not contain speakable English content.");
+		OutError = TEXT("Text did not contain speakable content for the selected language.");
 		return false;
 	}
 	if (OutTokenIds.Num() > 512)
@@ -204,7 +216,7 @@ bool FKokoroPhonemizer::Encode(const FString& Text, TArray<int64>& OutTokenIds, 
 	return true;
 }
 
-FString FKokoroPhonemizer::NormalizeText(const FString& Text)
+FString FKokoroPhonemizer::NormalizeEnglishText(const FString& Text)
 {
 	FString Result = Text;
 	Result.ReplaceInline(TEXT("\r"), TEXT(" "));

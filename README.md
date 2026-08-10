@@ -1,25 +1,34 @@
 # SpeechGen
 
-SpeechGen is an Unreal Engine 5.7 plugin for fully local English speech synthesis. It runs the single supported SpeechGen Kokoro-82M v1.0 CPU mixed model through Unreal's `NNERuntimeORTCpu`, keeping GPU memory available for the language model.
+SpeechGen is an Unreal Engine 5.7 plugin for fully local multilingual speech synthesis. It runs the single supported SpeechGen Kokoro-82M v1.0 CPU mixed model through Unreal's `NNERuntimeORTCpu`, keeping GPU memory available for the language model.
 
 ## Runtime lifecycle
 
 - Opening an editor project with SpeechGen enabled starts runtime preparation automatically.
 - Project Settings > Plugins > SpeechGen exposes install/update and reinstall actions.
-- The editor downloads only `v1.0-cpu-mixed.1` from the public SpeechGen runtime release and atomically promotes it into `Saved/SpeechGen/Runtimes/Kokoro/Win64/v1.0-cpu-mixed.1` after required file sizes are complete.
-- The runtime contains one model plus the 28 English voice/style tables required by authored voice profiles. It contains no benchmark audio, reports, rejected models, full-FP16 model, or community mixed model.
+- The editor downloads only `v1.0-cpu-mixed.2` from the public SpeechGen runtime release and atomically promotes it into `Saved/SpeechGen/Runtimes/Kokoro/Win64/v1.0-cpu-mixed.2` after required file sizes are complete.
+- The runtime contains one model, 48 supported voice/style tables, English pronunciation data, and the generated Mandarin IPA dictionary. It contains no benchmark audio, reports, rejected models, full-FP16 model, community mixed model, French voices, or Japanese voices.
 - Game and Shipping builds require a complete installed runtime. Packaging stages it beside the executable as NonUFS data; shipped players never download model files.
 - Runtime files and generated binaries are deliberately excluded from Git and Git LFS.
 
 ## Speech pipeline
 
-SpeechGen accepts a `USpeechGenVoiceProfile`, text, and an optional directed style. Profiles can blend official English Kokoro voices. Styles may replace that blend and adjust speed, gain, and terminal pause without changing the model.
+SpeechGen accepts a `USpeechGenVoiceProfile`, text, and an optional directed style. Every profile owns one explicit language and may blend official voices from that language. Cross-language voice blends are rejected before synthesis. Styles may replace the blend and adjust speed, gain, and terminal pause without changing the model.
 
-English grapheme-to-phoneme conversion is native C++. Known words use CMUdict; unknown words use Flite's CMU letter-to-sound model. No Python, eSpeak, Misaki, OpenPhonemizer, or external process is loaded at runtime.
+Supported profile languages and voice IDs:
+
+- English: the existing `af_*`, `am_*`, `bf_*`, and `bm_*` voices.
+- Spanish: `ef_dora`, `em_alex`, `em_santa`.
+- Hindi: `hf_alpha`, `hf_beta`, `hm_omega`, `hm_psi`.
+- Italian: `if_sara`, `im_nicola`.
+- Brazilian Portuguese: `pf_dora`, `pm_alex`, `pm_santa`.
+- Mandarin Chinese: `zf_xiaobei`, `zf_xiaoni`, `zf_xiaoxiao`, `zf_xiaoyi`, `zm_yunjian`, `zm_yunxi`, `zm_yunxia`, `zm_yunyang`.
+
+Language selection is explicit; SpeechGen does not guess from the input text. English uses native CMUdict plus Flite CMU letter-to-sound rules. Spanish, Hindi, Italian, and Brazilian Portuguese use native deterministic language rules. Mandarin uses a phrase-first IPA dictionary generated from pinned permissive sources and loaded only when Mandarin is requested. ASCII digits are pronounced digit by digit in the selected language. No Python, eSpeak, Misaki, OpenPhonemizer, or external process is loaded at runtime.
 
 ### Misaki difference
 
-The official Kokoro Python pipeline uses Misaki for richer contextual normalization and pronunciation. SpeechGen instead uses deterministic CMUdict plus Flite G2P so it can ship as a native, offline Unreal runtime with no interpreter. Diagnostics expose phonemization and inference failures explicitly. English prose and ordinary numbers are supported; language switching and author-defined pronunciation overrides are intentionally outside this version.
+The official Kokoro Python pipeline uses Misaki and eSpeak for richer contextual normalization and pronunciation. SpeechGen instead uses native deterministic frontends so it can ship as an offline Unreal runtime with no interpreter or copyleft runtime dependency. Diagnostics expose phonemization, unsupported-token, voice-language, and inference failures explicitly.
 
 ## Requirements
 

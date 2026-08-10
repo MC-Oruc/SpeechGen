@@ -6,7 +6,7 @@ using System.IO;
 
 public class SpeechGen : ModuleRules
 {
-    private const string RuntimeVersion = "v1.0-cpu-mixed.1";
+    private const string RuntimeVersion = "v1.0-cpu-mixed.2";
 
     public SpeechGen(ReadOnlyTargetRules Target) : base(Target)
     {
@@ -71,6 +71,14 @@ public class SpeechGen : ModuleRules
         RuntimeDependencies.Add(
             Path.Combine("$(TargetOutputDir)", "Licenses", "SpeechGen", "Flite-COPYING.txt"),
             Path.Combine(PluginDirectory, "ThirdParty", "flite", "COPYING"),
+            StagedFileType.NonUFS);
+        RuntimeDependencies.Add(
+            Path.Combine("$(TargetOutputDir)", "Licenses", "SpeechGen", "Pypinyin-LICENSE.txt"),
+            Path.Combine(PluginDirectory, "Licenses", "Pypinyin-LICENSE.txt"),
+            StagedFileType.NonUFS);
+        RuntimeDependencies.Add(
+            Path.Combine("$(TargetOutputDir)", "Licenses", "SpeechGen", "PinyinToIpa-LICENSE.txt"),
+            Path.Combine(PluginDirectory, "Licenses", "PinyinToIpa-LICENSE.txt"),
             StagedFileType.NonUFS);
     }
 

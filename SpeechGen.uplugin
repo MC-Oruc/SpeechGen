@@ -3,7 +3,7 @@
   "Version": 1,
   "VersionName": "1.0.0",
   "FriendlyName": "SpeechGen",
-  "Description": "Offline speech synthesis with verified Kokoro ONNX runtime provisioning.",
+  "Description": "Offline multilingual speech synthesis with Kokoro ONNX runtime provisioning.",
   "Category": "Runtime",
   "CreatedBy": "MC-Oruc",
   "CreatedByURL": "https://github.com/MC-Oruc",

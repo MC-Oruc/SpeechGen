@@ -2,19 +2,23 @@
 
 This document records the components used or redistributed by SpeechGen. It is an attribution inventory, not legal advice.
 
-## Kokoro-82M v1.0 model and English voice weights
+## Kokoro-82M v1.0 model and supported voice weights
 
 - Source: https://huggingface.co/hexgrad/Kokoro-82M
 - License: Apache License 2.0
 - Copyright and attribution: hexgrad and the Kokoro contributors.
 - Training-data attribution identified by the upstream model card includes the Koniwa corpus under CC BY 3.0 and SIWIS under CC BY 4.0.
 
-The runtime downloads the SpeechGen selective CPU mixed conversion and English voice tables from:
+The runtime downloads the SpeechGen selective CPU mixed conversion and supported voice tables from:
 
-- Source: https://github.com/MC-Oruc/SpeechGen-Runtimes/releases/tag/kokoro-v1.0-cpu-mixed.1
+- Source: https://github.com/MC-Oruc/SpeechGen-Runtimes/releases/tag/kokoro-v1.0-cpu-mixed.2
 - License: Apache License 2.0
 
-The runtime does not download a community alternative model. The following projects are retained as conversion references and attribution only:
+The binary voice tables were converted by the Apache-2.0 ONNX Community distribution from official Kokoro voice
+weights. SpeechGen intentionally excludes the French and Japanese voice tables.
+
+The runtime does not download a community alternative model. The following projects are model-conversion references;
+the ONNX Community repository also supplies the binary representation of the official voice weights:
 
 - https://github.com/taylorchu/kokoro-onnx
 - https://github.com/thewh1teagle/kokoro-onnx
@@ -46,6 +50,16 @@ The dictionary is downloaded from an immutable revision and distributed as runti
 - Copyright (c) Microsoft Corporation.
 
 SpeechGen uses the ONNX Runtime integration supplied by Unreal Engine through `NNERuntimeORTCpu`; SpeechGen does not redistribute a separate ONNX Runtime package.
+
+## Mandarin pronunciation dictionary
+
+SpeechGen's generated Mandarin IPA dictionary derives pronunciation data from `pypinyin` and converts it with
+`pinyin-to-ipa`. Neither Python package is loaded or distributed by the game.
+
+- pypinyin source: https://github.com/mozillazg/python-pinyin
+- pypinyin license: MIT; complete terms in `Pypinyin-LICENSE.txt`.
+- pinyin-to-ipa source: https://github.com/stefantaubert/pinyin-to-ipa
+- pinyin-to-ipa license: MIT; complete terms in `PinyinToIpa-LICENSE.txt`.
 
 The developer-only model recipe under `Tools/ModelBuild` uses pinned Python packages for ONNX graph authoring and benchmarking. These tools are not loaded or redistributed by the game. Its FP32 build input is the Apache-2.0 Kokoro conversion published by `thewh1teagle/kokoro-onnx`; the selective policy was reconstructed from the mixed artifact originating from `taylorchu/kokoro-onnx`. No ONNX model is stored in this Git repository or Git LFS.
 

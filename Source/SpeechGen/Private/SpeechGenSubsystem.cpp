@@ -81,6 +81,7 @@ struct USpeechGenSubsystem::FResolvedRequest
 	FGuid TurnId;
 	FGuid SegmentId;
 	FString Text;
+	ESpeechGenLanguage Language = ESpeechGenLanguage::English;
 	TArray<FResolvedVoiceWeight> VoiceBlend;
 	float Speed = 1.0f;
 	float Gain = 1.0f;
@@ -240,10 +241,11 @@ FGuid USpeechGenSubsystem::SynthesizeAsync(const FSpeechGenRequest& Request)
 	if (Resolved.bEnableDiagnostics)
 	{
 		UE_LOG(LogSpeechGen, Log,
-			TEXT("Queued request Turn=%s Segment=%s Chars=%d QueueDepth=%d Speed=%.2f Voices=%d"),
+			TEXT("Queued request Turn=%s Segment=%s Chars=%d QueueDepth=%d Speed=%.2f Voices=%d Language=%d"),
 			*Resolved.TurnId.ToString(EGuidFormats::DigitsWithHyphensLower),
 			*Resolved.SegmentId.ToString(EGuidFormats::DigitsWithHyphensLower), Resolved.Text.Len(),
-			Resolved.QueueDepthAtSubmission, Resolved.Speed, Resolved.VoiceBlend.Num());
+			Resolved.QueueDepthAtSubmission, Resolved.Speed, Resolved.VoiceBlend.Num(),
+			static_cast<int32>(Resolved.Language));
 	}
 	const FGuid SegmentId = Resolved.SegmentId;
 	TWeakObjectPtr<USpeechGenSubsystem> WeakThis(this);
@@ -280,10 +282,15 @@ bool USpeechGenSubsystem::ResolveRequest(const FSpeechGenRequest& Request, FReso
 			: TEXT("Voice profile has no native voice blend.");
 		return false;
 	}
+	if (!Request.VoiceProfile->ValidateVoiceBlend(Blend, OutError))
+	{
+		return false;
+	}
 
 	OutRequest.TurnId = Request.TurnId.IsValid() ? Request.TurnId : FGuid::NewGuid();
 	OutRequest.SegmentId = Request.SegmentId.IsValid() ? Request.SegmentId : FGuid::NewGuid();
 	OutRequest.Text = Request.Text;
+	OutRequest.Language = Request.VoiceProfile->Language;
 	OutRequest.bEnableDiagnostics = Request.bEnableDiagnostics;
 	for (const FSpeechGenVoiceWeight& Voice : Blend)
 	{
@@ -316,7 +323,7 @@ void USpeechGenSubsystem::ExecuteRequest(FResolvedRequest Request)
 	FString Phonemes;
 	FString Error;
 	const double PhonemizeStartedAtSeconds = FPlatformTime::Seconds();
-	if (!Phonemizer->Encode(Request.Text, TokenIds, Phonemes, Error))
+	if (!Phonemizer->Encode(Request.Language, Request.Text, TokenIds, Phonemes, Error))
 	{
 		UE_LOG(LogSpeechGen, Warning, TEXT("Phonemization failed Turn=%s Segment=%s: %s"),
 			*Request.TurnId.ToString(EGuidFormats::DigitsWithHyphensLower),
