@@ -1,0 +1,66 @@
+{
+  "source": {
+    "model_url": "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx",
+    "model_bytes": 325532387,
+    "upstream_revision": "6843c53",
+    "architecture": "Kokoro-82M-v1.0"
+  },
+  "quantization": {
+    "format": "QOperator",
+    "activation": "U8",
+    "weight": "S8",
+    "per_channel": true,
+    "reduce_range": true,
+    "calibration": "MinMax"
+  },
+  "expected_quantized_nodes": 90,
+  "expected_quantized_operators": {
+    "QLinearConv": 51,
+    "QGemm": 37,
+    "QLinearMatMul": 2
+  },
+  "selection": {
+    "Conv": {
+      "include_prefixes": ["/"],
+      "exclude_prefixes": [
+        "/decoder/decoder/generator/resblocks.",
+        "/decoder/decoder/generator/conv_post/"
+      ]
+    },
+    "Gemm": {
+      "include_prefixes": ["/"],
+      "exclude_prefixes": ["/decoder/decoder/generator/resblocks."]
+    },
+    "MatMul": {
+      "include_exact": [
+        "/encoder/bert_encoder/MatMul",
+        "/encoder/predictor/duration_proj/linear_layer/MatMul"
+      ]
+    }
+  },
+  "calibration": {
+    "voices": ["af_heart", "af_bella", "am_adam", "am_michael", "bf_emma", "bm_george"],
+    "speeds": [0.85, 1.0, 1.15],
+    "samples": [
+      {"name": "prior-ab-dialogue", "phonemes": "ˌI wˈɑntᵻd tʊ ˈæsk wˈɛðəɹ ju nˈOTəst ˈɛniθˌɪŋ ˌʌnjˈuʒəwəl lˈæst nˈIt."},
+      {"name": "short-question", "phonemes": "wˈɛɹ dɪd ðæt sˈaʊnd kˈʌm frʌm?"},
+      {"name": "short-command", "phonemes": "stˈɑp! dˈoʊnt mˈuv."},
+      {"name": "numbers", "phonemes": "ðə jˈiɹ ɪz twˈɛnti twˈɛnti sˈɪks."},
+      {"name": "medium-dialogue", "phonemes": "aɪ θˈɔt ju wɚ ɡˈoʊɪŋ tə lˈiv bɪfˈɔɹ dˈɑɹk, bʌt jʊɹ stˈɪl hˈiɹ."},
+      {"name": "medium-emphasis", "phonemes": "ðˈɪs ɪz nˈɑt ə wˈɔɹnɪŋ; ɪts ðə lˈæst tˈaɪm aɪl ˈæsk."},
+      {"name": "medium-soft", "phonemes": "kˈip jʊɹ vˈɔɪs lˈoʊ, ænd lˈɪsən tə ðə wˈɪnd."},
+      {"name": "long-narrative", "phonemes": "ðə sˈiti wəz kwˈaɪət æt dˈɔn, wɪð oʊnli ðə dˈɪstənt sˈaʊnd ʌv trˈeɪnz mˈuvɪŋ ðru ðə fˈɑɡ."},
+      {"name": "long-dialogue", "phonemes": "ɪf wi kən fˈaɪnd ðə kˈi bɪfˈɔɹ ðeɪ rɪtˈɜɹn, wi mˈeɪ hˈæv ə tʃˈæns tə ˈoʊpən ðə dˈɔɹ ænd ɡˈɛt ˈaʊt."}
+    ]
+  },
+  "quality_thresholds": {
+    "duration_ratio_min": 0.95,
+    "duration_ratio_max": 1.05,
+    "rms_ratio_min": 0.8,
+    "rms_ratio_max": 1.2,
+    "peak_max": 1.05,
+    "mel_rmse_db_max": 12.0,
+    "envelope_correlation_min": 0.8,
+    "spectral_flatness_delta_max": 0.02
+  }
+}

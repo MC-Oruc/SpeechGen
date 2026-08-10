@@ -103,7 +103,7 @@ struct SPEECHGEN_API FSpeechGenRuntimeStatus
 	ESpeechGenRuntimeState State = ESpeechGenRuntimeState::Unavailable;
 
 	UPROPERTY(BlueprintReadOnly, Category = "SpeechGen")
-	FString Model = TEXT("Kokoro-82M v1.0 Q8");
+	FString Model = TEXT("Kokoro-82M v1.0 FP16");
 
 	UPROPERTY(BlueprintReadOnly, Category = "SpeechGen")
 	FString Backend = TEXT("ONNX Runtime CPU");
