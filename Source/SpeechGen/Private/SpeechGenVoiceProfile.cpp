@@ -46,37 +46,70 @@ USpeechGenVoiceProfile::USpeechGenVoiceProfile()
 	DefaultVoice.Weight = 1.0f;
 }
 
-bool USpeechGenVoiceProfile::ResolveStyle(const ESpeechGenStyleMode StyleMode, const FName StyleId,
-	TArray<FSpeechGenVoiceWeight>& OutBlend, float& OutSpeed, float& OutGain, float& OutPauseScale) const
+bool USpeechGenVoiceProfile::Resolve(const FName VoiceVariantId, const ESpeechGenStyleMode StyleMode,
+	const FName StyleId, TArray<FSpeechGenVoiceWeight>& OutBlend, float& OutSpeed, float& OutGain,
+	float& OutPauseScale, FString& OutError) const
 {
 	OutBlend = NativeVoiceBlend;
 	OutSpeed = 1.0f;
 	OutGain = 1.0f;
 	OutPauseScale = 1.0f;
 
-	if (StyleMode == ESpeechGenStyleMode::Native)
+	const FSpeechGenStyleDefinition* Style = nullptr;
+	if (StyleMode == ESpeechGenStyleMode::Directed)
 	{
-		return !OutBlend.IsEmpty();
+		Style = DirectedStyles.FindByPredicate(
+			[StyleId](const FSpeechGenStyleDefinition& Candidate)
+			{
+				return Candidate.StyleId == StyleId;
+			});
+		if (!Style)
+		{
+			OutError = FString::Printf(TEXT("Voice profile does not define style '%s'."), *StyleId.ToString());
+			return false;
+		}
+
+		if (!Style->VoiceBlend.IsEmpty())
+		{
+			OutBlend = Style->VoiceBlend;
+		}
+		OutSpeed = Style->Speed;
+		OutGain = Style->Gain;
+		OutPauseScale = Style->PauseScale;
 	}
 
-	const FSpeechGenStyleDefinition* Style = DirectedStyles.FindByPredicate(
-		[StyleId](const FSpeechGenStyleDefinition& Candidate)
-		{
-			return Candidate.StyleId == StyleId;
-		});
-	if (!Style)
+	if (!VoiceVariantId.IsNone())
 	{
+		const FSpeechGenVoiceVariant* Variant = Style
+			? Style->VoiceVariants.FindByPredicate(
+				[VoiceVariantId](const FSpeechGenVoiceVariant& Candidate)
+				{
+					return Candidate.VariantId == VoiceVariantId;
+				})
+			: nullptr;
+		if (!Variant)
+		{
+			Variant = NativeVoiceVariants.FindByPredicate(
+				[VoiceVariantId](const FSpeechGenVoiceVariant& Candidate)
+				{
+					return Candidate.VariantId == VoiceVariantId;
+				});
+		}
+		if (!Variant || Variant->VoiceBlend.IsEmpty())
+		{
+			OutError = FString::Printf(TEXT("Voice profile does not define variant '%s'."),
+				*VoiceVariantId.ToString());
+			return false;
+		}
+		OutBlend = Variant->VoiceBlend;
+	}
+
+	if (OutBlend.IsEmpty())
+	{
+		OutError = TEXT("Voice profile has no resolved voice blend.");
 		return false;
 	}
-
-	if (!Style->VoiceBlend.IsEmpty())
-	{
-		OutBlend = Style->VoiceBlend;
-	}
-	OutSpeed = Style->Speed;
-	OutGain = Style->Gain;
-	OutPauseScale = Style->PauseScale;
-	return !OutBlend.IsEmpty();
+	return true;
 }
 
 bool USpeechGenVoiceProfile::ValidateVoiceBlend(const ESpeechGenLanguage Language,

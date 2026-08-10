@@ -3,8 +3,6 @@
 #include "CoreMinimal.h"
 #include "SpeechGenTypes.generated.h"
 
-class USpeechGenVoiceProfile;
-
 UENUM(BlueprintType)
 enum class ESpeechGenRuntimeState : uint8
 {
@@ -49,6 +47,18 @@ struct SPEECHGEN_API FSpeechGenVoiceWeight
 };
 
 USTRUCT(BlueprintType)
+struct SPEECHGEN_API FSpeechGenVoiceVariant
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SpeechGen|Voice")
+	FName VariantId;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SpeechGen|Voice")
+	TArray<FSpeechGenVoiceWeight> VoiceBlend;
+};
+
+USTRUCT(BlueprintType)
 struct SPEECHGEN_API FSpeechGenStyleDefinition
 {
 	GENERATED_BODY()
@@ -58,6 +68,9 @@ struct SPEECHGEN_API FSpeechGenStyleDefinition
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SpeechGen|Style")
 	TArray<FSpeechGenVoiceWeight> VoiceBlend;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SpeechGen|Style")
+	TArray<FSpeechGenVoiceVariant> VoiceVariants;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SpeechGen|Style", meta = (ClampMin = "0.7", ClampMax = "1.3"))
 	float Speed = 1.0f;

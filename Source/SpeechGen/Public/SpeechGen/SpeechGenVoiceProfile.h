@@ -17,10 +17,14 @@ public:
 	TArray<FSpeechGenVoiceWeight> NativeVoiceBlend;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SpeechGen|Voice")
+	TArray<FSpeechGenVoiceVariant> NativeVoiceVariants;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SpeechGen|Voice")
 	TArray<FSpeechGenStyleDefinition> DirectedStyles;
 
-	bool ResolveStyle(ESpeechGenStyleMode StyleMode, FName StyleId,
-		TArray<FSpeechGenVoiceWeight>& OutBlend, float& OutSpeed, float& OutGain, float& OutPauseScale) const;
+	bool Resolve(FName VoiceVariantId, ESpeechGenStyleMode StyleMode, FName StyleId,
+		TArray<FSpeechGenVoiceWeight>& OutBlend, float& OutSpeed, float& OutGain,
+		float& OutPauseScale, FString& OutError) const;
 	static bool ValidateVoiceBlend(ESpeechGenLanguage Language,
 		const TArray<FSpeechGenVoiceWeight>& Blend, FString& OutError);
 };
