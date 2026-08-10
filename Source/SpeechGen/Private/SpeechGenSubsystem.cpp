@@ -262,27 +262,13 @@ FGuid USpeechGenSubsystem::SynthesizeAsync(const FSpeechGenRequest& Request)
 bool USpeechGenSubsystem::ResolveRequest(const FSpeechGenRequest& Request, FResolvedRequest& OutRequest,
 	FString& OutError) const
 {
-	if (!Request.VoiceProfile)
-	{
-		OutError = TEXT("Speech request has no voice profile.");
-		return false;
-	}
 	if (Request.Text.TrimStartAndEnd().IsEmpty())
 	{
 		OutError = TEXT("Speech request text is empty.");
 		return false;
 	}
 
-	TArray<FSpeechGenVoiceWeight> Blend;
-	if (!Request.VoiceProfile->ResolveStyle(Request.StyleMode, Request.StyleId, Blend,
-		OutRequest.Speed, OutRequest.Gain, OutRequest.PauseScale))
-	{
-		OutError = Request.StyleMode == ESpeechGenStyleMode::Directed
-			? FString::Printf(TEXT("Voice profile does not define style '%s'."), *Request.StyleId.ToString())
-			: TEXT("Voice profile has no native voice blend.");
-		return false;
-	}
-	if (!Request.VoiceProfile->ValidateVoiceBlend(Blend, OutError))
+	if (!USpeechGenVoiceProfile::ValidateVoiceBlend(Request.Language, Request.VoiceBlend, OutError))
 	{
 		return false;
 	}
@@ -290,9 +276,12 @@ bool USpeechGenSubsystem::ResolveRequest(const FSpeechGenRequest& Request, FReso
 	OutRequest.TurnId = Request.TurnId.IsValid() ? Request.TurnId : FGuid::NewGuid();
 	OutRequest.SegmentId = Request.SegmentId.IsValid() ? Request.SegmentId : FGuid::NewGuid();
 	OutRequest.Text = Request.Text;
-	OutRequest.Language = Request.VoiceProfile->Language;
+	OutRequest.Language = Request.Language;
+	OutRequest.Speed = FMath::Clamp(Request.Speed, 0.7f, 1.3f);
+	OutRequest.Gain = FMath::Clamp(Request.Gain, 0.0f, 2.0f);
+	OutRequest.PauseScale = FMath::Clamp(Request.PauseScale, 0.0f, 1.0f);
 	OutRequest.bEnableDiagnostics = Request.bEnableDiagnostics;
-	for (const FSpeechGenVoiceWeight& Voice : Blend)
+	for (const FSpeechGenVoiceWeight& Voice : Request.VoiceBlend)
 	{
 		OutRequest.VoiceBlend.Add({Voice.VoiceId, Voice.Weight});
 	}

@@ -84,13 +84,19 @@ struct SPEECHGEN_API FSpeechGenRequest
 	FString Text;
 
 	UPROPERTY(BlueprintReadWrite, Category = "SpeechGen")
-	TObjectPtr<USpeechGenVoiceProfile> VoiceProfile = nullptr;
+	ESpeechGenLanguage Language = ESpeechGenLanguage::English;
 
 	UPROPERTY(BlueprintReadWrite, Category = "SpeechGen")
-	ESpeechGenStyleMode StyleMode = ESpeechGenStyleMode::Native;
+	TArray<FSpeechGenVoiceWeight> VoiceBlend;
 
-	UPROPERTY(BlueprintReadWrite, Category = "SpeechGen")
-	FName StyleId;
+	UPROPERTY(BlueprintReadWrite, Category = "SpeechGen", meta = (ClampMin = "0.7", ClampMax = "1.3"))
+	float Speed = 1.0f;
+
+	UPROPERTY(BlueprintReadWrite, Category = "SpeechGen", meta = (ClampMin = "0.0", ClampMax = "2.0"))
+	float Gain = 1.0f;
+
+	UPROPERTY(BlueprintReadWrite, Category = "SpeechGen", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float PauseScale = 1.0f;
 
 	UPROPERTY(BlueprintReadWrite, Category = "SpeechGen", AdvancedDisplay)
 	bool bEnableDiagnostics = false;

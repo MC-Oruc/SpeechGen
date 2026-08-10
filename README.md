@@ -13,7 +13,7 @@ SpeechGen is an Unreal Engine 5.7 plugin for fully local multilingual speech syn
 
 ## Speech pipeline
 
-SpeechGen accepts a `USpeechGenVoiceProfile`, text, and an optional directed style. Every profile owns one explicit language and may blend official voices from that language. Cross-language voice blends are rejected before synthesis. Styles may replace the blend and adjust speed, gain, and terminal pause without changing the model.
+SpeechGen accepts a fully resolved request language, voice blend, and synthesis controls. `USpeechGenVoiceProfile` is an authoring preset for voice identity and directed styles; language policy belongs to the caller. Cross-language voice blends are rejected before synthesis. Styles may replace the blend and adjust speed, gain, and terminal pause without changing the model.
 
 Supported profile languages and voice IDs:
 

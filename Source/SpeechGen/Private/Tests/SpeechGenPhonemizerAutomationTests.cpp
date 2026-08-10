@@ -146,13 +146,13 @@ namespace
 					FailedHandle = SpeechGen->OnRequestFailed.AddRaw(this, &FSpeechGenInferenceCommand::HandleFailed);
 				}
 				const FInferenceCase& InferenceCase = Cases[CurrentCase];
-				VoiceProfile->Language = InferenceCase.Language;
 				VoiceProfile->NativeVoiceBlend[0].VoiceId = InferenceCase.VoiceId;
 
 				FSpeechGenRequest Request;
 				Request.TurnId = FGuid::NewGuid();
 				Request.Text = InferenceCase.Text;
-				Request.VoiceProfile = VoiceProfile.Get();
+				Request.Language = InferenceCase.Language;
+				Request.VoiceBlend = VoiceProfile->NativeVoiceBlend;
 				ExpectedSegmentId = SpeechGen->SynthesizeAsync(Request);
 				bSubmitted = true;
 				return false;

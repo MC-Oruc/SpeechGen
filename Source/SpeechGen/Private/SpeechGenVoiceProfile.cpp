@@ -79,7 +79,8 @@ bool USpeechGenVoiceProfile::ResolveStyle(const ESpeechGenStyleMode StyleMode, c
 	return !OutBlend.IsEmpty();
 }
 
-bool USpeechGenVoiceProfile::ValidateVoiceBlend(const TArray<FSpeechGenVoiceWeight>& Blend, FString& OutError) const
+bool USpeechGenVoiceProfile::ValidateVoiceBlend(const ESpeechGenLanguage Language,
+	const TArray<FSpeechGenVoiceWeight>& Blend, FString& OutError)
 {
 	for (const FSpeechGenVoiceWeight& Voice : Blend)
 	{
@@ -91,7 +92,7 @@ bool USpeechGenVoiceProfile::ValidateVoiceBlend(const TArray<FSpeechGenVoiceWeig
 		}
 		if (!IsExperimentalLanguage(Language) && VoiceLanguage.GetValue() != Language)
 		{
-			OutError = FString::Printf(TEXT("Voice '%s' does not match the voice profile language."),
+			OutError = FString::Printf(TEXT("Voice '%s' does not match the speech request language."),
 				*Voice.VoiceId.ToString());
 			return false;
 		}

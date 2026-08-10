@@ -14,9 +14,6 @@ public:
 	USpeechGenVoiceProfile();
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SpeechGen|Voice")
-	ESpeechGenLanguage Language = ESpeechGenLanguage::English;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SpeechGen|Voice")
 	TArray<FSpeechGenVoiceWeight> NativeVoiceBlend;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SpeechGen|Voice")
@@ -24,5 +21,6 @@ public:
 
 	bool ResolveStyle(ESpeechGenStyleMode StyleMode, FName StyleId,
 		TArray<FSpeechGenVoiceWeight>& OutBlend, float& OutSpeed, float& OutGain, float& OutPauseScale) const;
-	bool ValidateVoiceBlend(const TArray<FSpeechGenVoiceWeight>& Blend, FString& OutError) const;
+	static bool ValidateVoiceBlend(ESpeechGenLanguage Language,
+		const TArray<FSpeechGenVoiceWeight>& Blend, FString& OutError);
 };
