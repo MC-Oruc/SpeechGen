@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DeveloperSettings.h"
+#include "SpeechGen/SpeechGenProjectSettings.h"
 #include "SpeechGenEditorSettings.generated.h"
 
 UENUM()
@@ -19,6 +20,13 @@ class SPEECHGENEDITOR_API USpeechGenEditorSettings : public UDeveloperSettings
 	GENERATED_BODY()
 
 public:
+	UPROPERTY(Config, EditAnywhere, Category = "Runtime Lifecycle")
+	bool bOverrideEditorLifecycle = false;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Runtime Lifecycle",
+		meta = (EditCondition = "bOverrideEditorLifecycle"))
+	ESpeechGenEditorLifecycleMode EditorLifecycle = ESpeechGenEditorLifecycleMode::PIESession;
+
 	UPROPERTY(Config, EditAnywhere, Category = "Runtime")
 	bool bAutomaticallyInstallRuntime = true;
 
@@ -42,6 +50,12 @@ public:
 
 	UFUNCTION(CallInEditor, Category = "Runtime")
 	void Reinstall();
+
+	UFUNCTION(CallInEditor, Category = "Runtime")
+	void StartRuntime();
+
+	UFUNCTION(CallInEditor, Category = "Runtime")
+	void StopRuntime();
 
 	virtual FName GetCategoryName() const override;
 };

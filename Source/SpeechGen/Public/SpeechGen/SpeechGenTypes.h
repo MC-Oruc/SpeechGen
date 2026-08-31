@@ -9,7 +9,8 @@ enum class ESpeechGenRuntimeState : uint8
 	Unavailable,
 	Loading,
 	Ready,
-	Failed
+	Failed,
+	Stopped
 };
 
 UENUM(BlueprintType)
@@ -136,7 +137,7 @@ struct SPEECHGEN_API FSpeechGenRuntimeStatus
 	GENERATED_BODY()
 
 	UPROPERTY(BlueprintReadOnly, Category = "SpeechGen")
-	ESpeechGenRuntimeState State = ESpeechGenRuntimeState::Unavailable;
+	ESpeechGenRuntimeState State = ESpeechGenRuntimeState::Stopped;
 
 	UPROPERTY(BlueprintReadOnly, Category = "SpeechGen")
 	FString Model = TEXT("Kokoro-82M v1.0 CPU Mixed");

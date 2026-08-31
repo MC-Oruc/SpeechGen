@@ -1,5 +1,7 @@
 #include "SpeechGen/SpeechGenSubsystem.h"
 
+#include "SpeechGen/SpeechGenProjectSettings.h"
+
 #include "Async/Async.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformTime.h"
@@ -97,19 +99,41 @@ void USpeechGenSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Super::Initialize(Collection);
 	bShuttingDown = false;
 	RuntimeStatus.RuntimePath = ResolveRuntimeDirectory();
+	SetRuntimeState(ESpeechGenRuntimeState::Stopped);
+#if !WITH_EDITOR
+	if (GetDefault<USpeechGenProjectSettings>()->PackagedDefaults.bStartRuntimeOnGameInstance)
+	{
+		StartRuntime();
+	}
+#endif
+}
+
+bool USpeechGenSubsystem::StartRuntime()
+{
+	if (RuntimeStatus.State == ESpeechGenRuntimeState::Loading
+		|| RuntimeStatus.State == ESpeechGenRuntimeState::Ready)
+	{
+		return true;
+	}
+
+	bShuttingDown = false;
 	WorkerPool.Reset(FQueuedThreadPool::Allocate());
 	if (!WorkerPool || !WorkerPool->Create(1, 256 * 1024, TPri_Normal, TEXT("SpeechGenWorker")))
 	{
 		WorkerPool.Reset();
 		SetRuntimeState(ESpeechGenRuntimeState::Failed, TEXT("Unable to create SpeechGen worker thread."));
-		return;
+		return false;
 	}
+	++RuntimeGeneration;
 	BeginRuntimeLoad();
+	return RuntimeStatus.State == ESpeechGenRuntimeState::Loading
+		|| RuntimeStatus.State == ESpeechGenRuntimeState::Ready;
 }
 
-void USpeechGenSubsystem::Deinitialize()
+void USpeechGenSubsystem::StopRuntime()
 {
 	bShuttingDown = true;
+	++RuntimeGeneration;
 	CancelAll();
 	if (WorkerPool)
 	{
@@ -120,6 +144,14 @@ void USpeechGenSubsystem::Deinitialize()
 	ModelInstance.Reset();
 	Model.Reset();
 	ModelData = nullptr;
+	SetRuntimeState(ESpeechGenRuntimeState::Stopped);
+	bShuttingDown = false;
+}
+
+void USpeechGenSubsystem::Deinitialize()
+{
+	StopRuntime();
+	bShuttingDown = true;
 	Super::Deinitialize();
 }
 
@@ -134,6 +166,7 @@ FString USpeechGenSubsystem::ResolveRuntimeDirectory()
 
 void USpeechGenSubsystem::BeginRuntimeLoad()
 {
+	check(WorkerPool);
 	FModuleManager::Get().LoadModule(TEXT("NNERuntimeORT"));
 
 	const FString RuntimeDirectory = ResolveRuntimeDirectory();
@@ -152,7 +185,8 @@ void USpeechGenSubsystem::BeginRuntimeLoad()
 
 	TWeakObjectPtr<USpeechGenSubsystem> WeakThis(this);
 	TObjectPtr<UNNEModelData> LoadedModelData = ModelData;
-	AsyncPool(*WorkerPool, [WeakThis, LoadedModelData, RuntimeDirectory]() mutable
+	const uint64 Generation = RuntimeGeneration;
+	AsyncPool(*WorkerPool, [WeakThis, LoadedModelData, RuntimeDirectory, Generation]() mutable
 	{
 		TSharedPtr<UE::NNE::IModelCPU> LoadedModel;
 		TSharedPtr<UE::NNE::IModelInstanceCPU> LoadedInstance;
@@ -188,22 +222,26 @@ void USpeechGenSubsystem::BeginRuntimeLoad()
 		}
 
 		AsyncTask(ENamedThreads::GameThread,
-			[WeakThis, LoadedModel = MoveTemp(LoadedModel), LoadedInstance = MoveTemp(LoadedInstance),
+			[WeakThis, Generation, LoadedModel = MoveTemp(LoadedModel), LoadedInstance = MoveTemp(LoadedInstance),
 				LoadedPhonemizer = MoveTemp(LoadedPhonemizer), Error]() mutable
 			{
 				if (USpeechGenSubsystem* Subsystem = WeakThis.Get())
 				{
-					Subsystem->CompleteRuntimeLoad(MoveTemp(LoadedModel), MoveTemp(LoadedInstance),
+					Subsystem->CompleteRuntimeLoad(Generation, MoveTemp(LoadedModel), MoveTemp(LoadedInstance),
 						MoveTemp(LoadedPhonemizer), Error);
 				}
 			});
 	});
 }
 
-void USpeechGenSubsystem::CompleteRuntimeLoad(TSharedPtr<UE::NNE::IModelCPU> InModel,
+void USpeechGenSubsystem::CompleteRuntimeLoad(const uint64 Generation, TSharedPtr<UE::NNE::IModelCPU> InModel,
 	TSharedPtr<UE::NNE::IModelInstanceCPU> InInstance, TSharedPtr<FKokoroPhonemizer> InPhonemizer,
 	const FString& Error)
 {
+	if (Generation != RuntimeGeneration || bShuttingDown)
+	{
+		return;
+	}
 	if (!Error.IsEmpty())
 	{
 		SetRuntimeState(ESpeechGenRuntimeState::Failed, Error);

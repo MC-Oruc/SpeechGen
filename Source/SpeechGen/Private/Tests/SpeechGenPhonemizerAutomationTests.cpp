@@ -102,7 +102,9 @@ namespace
 			{
 				Test.AddError(TEXT("SpeechGen subsystem was not created."));
 				bFinished = true;
+				return;
 			}
+			SpeechGen->StartRuntime();
 		}
 
 		virtual ~FSpeechGenInferenceCommand() override

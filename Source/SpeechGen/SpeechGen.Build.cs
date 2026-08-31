@@ -16,13 +16,13 @@ public class SpeechGen : ModuleRules
         {
             "Core",
             "CoreUObject",
+            "DeveloperSettings",
             "Engine",
             "NNE"
         });
 
         PrivateDependencyModuleNames.AddRange(new[]
         {
-            "DeveloperSettings",
             "Json",
             "JsonUtilities",
             "Projects"

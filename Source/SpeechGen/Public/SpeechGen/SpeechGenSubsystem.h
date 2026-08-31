@@ -30,6 +30,12 @@ public:
 	UFUNCTION(BlueprintPure, Category = "SpeechGen")
 	FSpeechGenRuntimeStatus GetRuntimeStatus() const { return RuntimeStatus; }
 
+	UFUNCTION(BlueprintCallable, Category = "SpeechGen")
+	bool StartRuntime();
+
+	UFUNCTION(BlueprintCallable, Category = "SpeechGen")
+	void StopRuntime();
+
 	FGuid SynthesizeAsync(const FSpeechGenRequest& Request);
 	void CancelTurn(FGuid TurnId);
 	void CancelAll();
@@ -44,7 +50,7 @@ private:
 	struct FResolvedRequest;
 
 	void BeginRuntimeLoad();
-	void CompleteRuntimeLoad(TSharedPtr<UE::NNE::IModelCPU> InModel,
+	void CompleteRuntimeLoad(uint64 Generation, TSharedPtr<UE::NNE::IModelCPU> InModel,
 		TSharedPtr<UE::NNE::IModelInstanceCPU> InInstance, TSharedPtr<FKokoroPhonemizer> InPhonemizer,
 		const FString& Error);
 	bool ResolveRequest(const FSpeechGenRequest& Request, FResolvedRequest& OutRequest, FString& OutError) const;
@@ -66,5 +72,6 @@ private:
 	mutable FCriticalSection CancellationMutex;
 	TMap<FGuid, TArray<TSharedPtr<std::atomic_bool, ESPMode::ThreadSafe>>> ActiveCancellationFlags;
 	std::atomic<int32> PendingRequestCount{0};
+	uint64 RuntimeGeneration = 0;
 	bool bShuttingDown = false;
 };
