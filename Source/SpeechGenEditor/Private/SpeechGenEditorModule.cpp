@@ -2,8 +2,11 @@
 #include "Engine/World.h"
 #include "Editor.h"
 #include "Modules/ModuleManager.h"
+#include "PropertyEditorModule.h"
 #include "SpeechGen/SpeechGenSubsystem.h"
 #include "SpeechGenEditor/SpeechGenEditorSettings.h"
+#include "SpeechGenVoiceWeightCustomization.h"
+#include "SpeechGenVoiceProfileDetails.h"
 #include "UObject/UnrealType.h"
 
 namespace
@@ -22,6 +25,12 @@ class FSpeechGenEditorModule final : public IModuleInterface
 public:
 	virtual void StartupModule() override
 	{
+		FPropertyEditorModule& PropertyEditor = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
+		PropertyEditor.RegisterCustomPropertyTypeLayout(TEXT("SpeechGenVoiceWeight"),
+			FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FSpeechGenVoiceWeightCustomization::MakeInstance));
+		PropertyEditor.RegisterCustomClassLayout(TEXT("SpeechGenVoiceProfile"),
+			FOnGetDetailCustomizationInstance::CreateStatic(&FSpeechGenVoiceProfileDetails::MakeInstance));
+		PropertyEditor.NotifyCustomizationModuleChanged();
 		WorldInitializedHandle = FWorldDelegates::OnPostWorldInitialization.AddRaw(
 			this, &FSpeechGenEditorModule::HandleWorldInitialized);
 		PostPIEStartedHandle = FEditorDelegates::PostPIEStarted.AddRaw(
@@ -34,6 +43,13 @@ public:
 
 	virtual void ShutdownModule() override
 	{
+		if (FModuleManager::Get().IsModuleLoaded("PropertyEditor"))
+		{
+			FPropertyEditorModule& PropertyEditor = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+			PropertyEditor.UnregisterCustomPropertyTypeLayout(TEXT("SpeechGenVoiceWeight"));
+			PropertyEditor.UnregisterCustomClassLayout(TEXT("SpeechGenVoiceProfile"));
+			PropertyEditor.NotifyCustomizationModuleChanged();
+		}
 		FWorldDelegates::OnPostWorldInitialization.Remove(WorldInitializedHandle);
 		FEditorDelegates::PostPIEStarted.Remove(PostPIEStartedHandle);
 		if (UObjectInitialized())

@@ -1,6 +1,7 @@
 #include "Misc/AutomationTest.h"
 
 #include "SpeechGen/SpeechGenVoiceProfile.h"
+#include "SpeechGen/SpeechGenSubsystem.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -39,6 +40,19 @@ bool FSpeechGenVoiceProfileVariantTest::RunTest(const FString& Parameters)
 	Blend.Reset();
 	TestFalse(TEXT("Unknown variant is rejected"), Profile->Resolve(TEXT("unknown"),
 		ESpeechGenStyleMode::Native, NAME_None, Blend, Speed, Gain, PauseScale, Error));
+	TestEqual(TEXT("American voice language"),
+		USpeechGenVoiceProfile::GetVoiceLanguage(TEXT("af_heart")).GetValue(), ESpeechGenLanguage::English);
+	TestEqual(TEXT("British voice language"),
+		USpeechGenVoiceProfile::GetVoiceLanguage(TEXT("bm_george")).GetValue(), ESpeechGenLanguage::English);
+	TestEqual(TEXT("Portuguese voice language"),
+		USpeechGenVoiceProfile::GetVoiceLanguage(TEXT("pf_dora")).GetValue(), ESpeechGenLanguage::BrazilianPortuguese);
+	TestFalse(TEXT("Unknown voice prefix has no language"),
+		USpeechGenVoiceProfile::GetVoiceLanguage(TEXT("xx_unknown")).IsSet());
+	for (const FString& VoiceId : USpeechGenSubsystem::GetAvailableVoiceIds())
+	{
+		TestTrue(TEXT("Installed voice has a supported language"),
+			USpeechGenVoiceProfile::GetVoiceLanguage(FName(*VoiceId)).IsSet());
+	}
 	return true;
 }
 

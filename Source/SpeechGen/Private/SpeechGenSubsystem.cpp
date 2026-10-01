@@ -1,8 +1,10 @@
 #include "SpeechGen/SpeechGenSubsystem.h"
 
 #include "SpeechGen/SpeechGenProjectSettings.h"
+#include "SpeechGen/SpeechGenAudioCache.h"
 
 #include "Async/Async.h"
+#include "Engine/GameInstance.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformTime.h"
 #include "Misc/FileHelper.h"
@@ -108,6 +110,16 @@ void USpeechGenSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 #endif
 }
 
+#if WITH_EDITOR
+USpeechGenSubsystem* USpeechGenSubsystem::CreateEditorPreviewRuntime(UGameInstance& Owner)
+{
+	USpeechGenSubsystem* Runtime = NewObject<USpeechGenSubsystem>(&Owner);
+	Runtime->RuntimeStatus.RuntimePath = ResolveRuntimeDirectory();
+	Runtime->SetRuntimeState(ESpeechGenRuntimeState::Stopped);
+	return Runtime;
+}
+#endif
+
 bool USpeechGenSubsystem::StartRuntime()
 {
 	if (RuntimeStatus.State == ESpeechGenRuntimeState::Loading
@@ -162,6 +174,27 @@ FString USpeechGenSubsystem::ResolveRuntimeDirectory()
 #else
 	return FPaths::Combine(FPlatformProcess::BaseDir(), TEXT("SpeechGen/Runtimes/Kokoro/Win64"), RuntimeVersion);
 #endif
+}
+
+TArray<FString> USpeechGenSubsystem::GetAvailableVoiceIds()
+{
+	const FString VoiceDirectory = FPaths::Combine(ResolveRuntimeDirectory(), TEXT("voices"));
+	TArray<FString> VoiceFiles;
+	IFileManager::Get().FindFiles(VoiceFiles, *FPaths::Combine(VoiceDirectory, TEXT("*.bin")), true, false);
+
+	TArray<FString> VoiceIds;
+	constexpr int64 ExpectedVoiceBytes = static_cast<int64>(VoiceRows) * StyleDimension * sizeof(float);
+	for (const FString& VoiceFile : VoiceFiles)
+	{
+		const FName VoiceId(*FPaths::GetBaseFilename(VoiceFile));
+		if (USpeechGenVoiceProfile::GetVoiceLanguage(VoiceId).IsSet()
+			&& IFileManager::Get().FileSize(*FPaths::Combine(VoiceDirectory, VoiceFile)) == ExpectedVoiceBytes)
+		{
+			VoiceIds.Add(VoiceId.ToString());
+		}
+	}
+	VoiceIds.Sort();
+	return VoiceIds;
 }
 
 void USpeechGenSubsystem::BeginRuntimeLoad()
@@ -257,7 +290,7 @@ FGuid USpeechGenSubsystem::SynthesizeAsync(const FSpeechGenRequest& Request)
 {
 	FResolvedRequest Resolved;
 	FString Error;
-	if (RuntimeStatus.State != ESpeechGenRuntimeState::Ready || !ResolveRequest(Request, Resolved, Error))
+	if (!ResolveRequest(Request, Resolved, Error))
 	{
 		const FGuid SegmentId = Request.SegmentId.IsValid() ? Request.SegmentId : FGuid::NewGuid();
 		UE_LOG(LogSpeechGen, Warning, TEXT("Rejected speech request Turn=%s Segment=%s: %s"),
@@ -287,14 +320,33 @@ FGuid USpeechGenSubsystem::SynthesizeAsync(const FSpeechGenRequest& Request)
 	}
 	const FGuid SegmentId = Resolved.SegmentId;
 	TWeakObjectPtr<USpeechGenSubsystem> WeakThis(this);
-	AsyncPool(*WorkerPool, [WeakThis, Resolved = MoveTemp(Resolved)]() mutable
+	if (RuntimeStatus.State == ESpeechGenRuntimeState::Ready && WorkerPool)
 	{
-		if (USpeechGenSubsystem* Subsystem = WeakThis.Get())
+		AsyncPool(*WorkerPool, [WeakThis, Resolved = MoveTemp(Resolved)]() mutable
 		{
-			Subsystem->ExecuteRequest(MoveTemp(Resolved));
-		}
-	});
+			if (USpeechGenSubsystem* Subsystem = WeakThis.Get())
+			{
+				Subsystem->ExecuteRequest(MoveTemp(Resolved));
+			}
+		});
+	}
+	else
+	{
+		Async(EAsyncExecution::ThreadPool, [WeakThis, Resolved = MoveTemp(Resolved)]() mutable
+		{
+			if (USpeechGenSubsystem* Subsystem = WeakThis.Get())
+			{
+				Subsystem->ExecuteRequest(MoveTemp(Resolved));
+			}
+		});
+	}
 	return SegmentId;
+}
+
+void USpeechGenSubsystem::SetAuthoredCacheDirectory(const FString& Directory)
+{
+	check(IsInGameThread());
+	AuthoredCacheDirectory = Directory;
 }
 
 bool USpeechGenSubsystem::ResolveRequest(const FSpeechGenRequest& Request, FResolvedRequest& OutRequest,
@@ -330,8 +382,67 @@ void USpeechGenSubsystem::ExecuteRequest(FResolvedRequest Request)
 {
 	const double ExecutionStartedAtSeconds = FPlatformTime::Seconds();
 	const double QueueWaitMilliseconds = (ExecutionStartedAtSeconds - Request.EnqueuedAtSeconds) * 1000.0;
+	FSpeechGenRequest CacheRequest;
+	CacheRequest.Text = Request.Text;
+	CacheRequest.Language = Request.Language;
+	CacheRequest.Speed = Request.Speed;
+	CacheRequest.Gain = Request.Gain;
+	CacheRequest.PauseScale = Request.PauseScale;
+	CacheRequest.TurnId = Request.TurnId;
+	CacheRequest.SegmentId = Request.SegmentId;
+	for (const FResolvedVoiceWeight& Voice : Request.VoiceBlend)
+	{
+		FSpeechGenVoiceWeight& Entry = CacheRequest.VoiceBlend.AddDefaulted_GetRef();
+		Entry.VoiceId = Voice.VoiceId;
+		Entry.Weight = Voice.Weight;
+	}
+	FSpeechGenResult CachedResult;
+	FString CacheError;
+	const bool bAuthoredHit = !AuthoredCacheDirectory.IsEmpty()
+		&& FSpeechGenAudioCache::TryLoad(AuthoredCacheDirectory, CacheRequest, CachedResult, CacheError);
+	const bool bGeneratedHit = !bAuthoredHit && FSpeechGenAudioCache::TryLoad(
+		FSpeechGenAudioCache::GetGeneratedDirectory(), CacheRequest, CachedResult, CacheError);
+	if (bAuthoredHit || bGeneratedHit)
+	{
+		CachedResult.Source = bAuthoredHit
+			? ESpeechGenResultSource::AuthoredCache : ESpeechGenResultSource::GeneratedCache;
+		AsyncTask(ENamedThreads::GameThread,
+			[WeakThis = TWeakObjectPtr<USpeechGenSubsystem>(this), Request, Result = MoveTemp(CachedResult)]() mutable
+			{
+				if (USpeechGenSubsystem* Subsystem = WeakThis.Get())
+				{
+					if (!IsRequestCancelled(Request))
+					{
+						Subsystem->OnSegmentReady.Broadcast(Result);
+					}
+					Subsystem->MarkRequestFinished(Request.TurnId, Request.CancellationFlag);
+				}
+			});
+		return;
+	}
+	if (!CacheError.IsEmpty())
+	{
+		UE_LOG(LogSpeechGen, Warning, TEXT("%s"), *CacheError);
+	}
 	if (bShuttingDown || IsRequestCancelled(Request) || !ModelInstance || !Phonemizer)
 	{
+		if (!bShuttingDown && !IsRequestCancelled(Request))
+		{
+			AsyncTask(ENamedThreads::GameThread,
+				[WeakThis = TWeakObjectPtr<USpeechGenSubsystem>(this), Request]()
+				{
+					if (USpeechGenSubsystem* Subsystem = WeakThis.Get())
+					{
+						if (!IsRequestCancelled(Request))
+						{
+							Subsystem->OnRequestFailed.Broadcast(Request.TurnId, Request.SegmentId,
+								NSLOCTEXT("SpeechGen", "RuntimeUnavailableNoCache", "SpeechGen runtime is not ready and no exact cached clip exists.").ToString());
+						}
+						Subsystem->MarkRequestFinished(Request.TurnId, Request.CancellationFlag);
+					}
+				});
+			return;
+		}
 		if (Request.bEnableDiagnostics)
 		{
 			UE_LOG(LogSpeechGen, Log,
@@ -490,6 +601,10 @@ void USpeechGenSubsystem::ExecuteRequest(FResolvedRequest Request)
 	const float BasePause = Request.Text.EndsWith(TEXT("?")) || Request.Text.EndsWith(TEXT("!")) ? 0.18f : 0.12f;
 	Result.PcmSamples.AddZeroed(FMath::RoundToInt(SampleRate * BasePause * Request.PauseScale));
 	Result.DurationSeconds = static_cast<float>(Result.PcmSamples.Num()) / SampleRate;
+	if (!FSpeechGenAudioCache::SaveGenerated(CacheRequest, Result, CacheError))
+	{
+		UE_LOG(LogSpeechGen, Warning, TEXT("Generated speech could not be cached: %s"), *CacheError);
+	}
 	const double PcmMilliseconds = (FPlatformTime::Seconds() - PcmStartedAtSeconds) * 1000.0;
 	if (Request.bEnableDiagnostics)
 	{

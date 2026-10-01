@@ -40,7 +40,8 @@ struct SPEECHGEN_API FSpeechGenVoiceWeight
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SpeechGen|Voice")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SpeechGen|Voice",
+		meta = (GetOptions = "SpeechGen.SpeechGenSubsystem.GetAvailableVoiceIds"))
 	FName VoiceId = TEXT("af_heart");
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SpeechGen|Voice", meta = (ClampMin = "0.0"))
@@ -116,6 +117,13 @@ struct SPEECHGEN_API FSpeechGenRequest
 	bool bEnableDiagnostics = false;
 };
 
+enum class ESpeechGenResultSource : uint8
+{
+	Synthesized,
+	AuthoredCache,
+	GeneratedCache
+};
+
 struct SPEECHGEN_API FSpeechGenResult
 {
 	FGuid TurnId;
@@ -129,6 +137,8 @@ struct SPEECHGEN_API FSpeechGenResult
 	int32 SampleRate = 24000;
 
 	float DurationSeconds = 0.0f;
+
+	ESpeechGenResultSource Source = ESpeechGenResultSource::Synthesized;
 };
 
 USTRUCT(BlueprintType)

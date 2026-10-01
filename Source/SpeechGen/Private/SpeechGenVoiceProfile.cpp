@@ -2,40 +2,40 @@
 
 namespace
 {
-	TOptional<ESpeechGenLanguage> ResolveVoiceLanguage(const FName VoiceId)
-	{
-		const FString Id = VoiceId.ToString();
-		if (Id.Len() < 2 || (Id[1] != TEXT('f') && Id[1] != TEXT('m')))
-		{
-			return {};
-		}
-
-		switch (Id[0])
-		{
-		case TEXT('a'):
-		case TEXT('b'):
-			return ESpeechGenLanguage::English;
-		case TEXT('z'):
-			return ESpeechGenLanguage::MandarinChinese;
-		case TEXT('e'):
-			return ESpeechGenLanguage::Spanish;
-		case TEXT('h'):
-			return ESpeechGenLanguage::Hindi;
-		case TEXT('i'):
-			return ESpeechGenLanguage::Italian;
-		case TEXT('p'):
-			return ESpeechGenLanguage::BrazilianPortuguese;
-		default:
-			return {};
-		}
-	}
-
 	bool IsExperimentalLanguage(const ESpeechGenLanguage Language)
 	{
 		return Language == ESpeechGenLanguage::TurkishExperimental
 			|| Language == ESpeechGenLanguage::AzerbaijaniExperimental
 			|| Language == ESpeechGenLanguage::GermanExperimental
 			|| Language == ESpeechGenLanguage::DutchExperimental;
+	}
+}
+
+TOptional<ESpeechGenLanguage> USpeechGenVoiceProfile::GetVoiceLanguage(const FName VoiceId)
+{
+	const FString Id = VoiceId.ToString();
+	if (Id.Len() < 2 || (Id[1] != TEXT('f') && Id[1] != TEXT('m')))
+	{
+		return {};
+	}
+
+	switch (Id[0])
+	{
+	case TEXT('a'):
+	case TEXT('b'):
+		return ESpeechGenLanguage::English;
+	case TEXT('z'):
+		return ESpeechGenLanguage::MandarinChinese;
+	case TEXT('e'):
+		return ESpeechGenLanguage::Spanish;
+	case TEXT('h'):
+		return ESpeechGenLanguage::Hindi;
+	case TEXT('i'):
+		return ESpeechGenLanguage::Italian;
+	case TEXT('p'):
+		return ESpeechGenLanguage::BrazilianPortuguese;
+	default:
+		return {};
 	}
 }
 
@@ -117,7 +117,7 @@ bool USpeechGenVoiceProfile::ValidateVoiceBlend(const ESpeechGenLanguage Languag
 {
 	for (const FSpeechGenVoiceWeight& Voice : Blend)
 	{
-		const TOptional<ESpeechGenLanguage> VoiceLanguage = ResolveVoiceLanguage(Voice.VoiceId);
+		const TOptional<ESpeechGenLanguage> VoiceLanguage = GetVoiceLanguage(Voice.VoiceId);
 		if (!VoiceLanguage.IsSet())
 		{
 			OutError = FString::Printf(TEXT("Voice '%s' is not supported by SpeechGen."), *Voice.VoiceId.ToString());

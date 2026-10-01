@@ -15,6 +15,8 @@ SpeechGen is an Unreal Engine 5.7 plugin for fully local multilingual speech syn
 
 SpeechGen accepts a fully resolved request language, voice blend, and synthesis controls. `USpeechGenVoiceProfile` is an authoring preset for voice identity, named acoustic variants, and directed styles; selection and language policy belong to the caller. Cross-language voice blends are rejected before synthesis. Styles may replace the blend and adjust speed, gain, and terminal pause without changing the model.
 
+The editor voice picker shows each installed voice's base language/accent, gender, name, and unchanged voice ID. Its search accepts those labels. For experimental speech languages, the displayed language describes the carrier voice, not the language of the generated text. Voice tables (`*.bin`) are not playable samples. A voice profile's Details panel provides a native-blend or named-variant audition: edit the short test phrase, click **Synthesize and Play**, and read model-load time, request time, audio duration, real-time factor, sample rate, and cache source. The preview model loads only when requested and is isolated from gameplay/PIE.
+
 Supported profile languages and voice IDs:
 
 - English: the existing `af_*`, `am_*`, `bf_*`, and `bm_*` voices.

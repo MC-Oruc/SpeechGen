@@ -2,8 +2,12 @@
 
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
+#include "HAL/FileManager.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "Phonemizer/KokoroPhonemizer.h"
 #include "SpeechGen/SpeechGenSubsystem.h"
+#include "SpeechGen/SpeechGenAudioCache.h"
 #include "SpeechGen/SpeechGenVoiceProfile.h"
 #include "UObject/StrongObjectPtr.h"
 
@@ -266,6 +270,109 @@ bool FSpeechGenInferenceTest::RunTest(const FString& Parameters)
 {
 	(void)Parameters;
 	ADD_LATENT_AUTOMATION_COMMAND(FSpeechGenInferenceCommand(*this));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSpeechGenAudioCacheIdentityTest,
+	"SpeechGen.AudioCache.RequestIdentity",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FSpeechGenAudioCacheIdentityTest::RunTest(const FString& Parameters)
+{
+	FSpeechGenRequest Request;
+	Request.Text = TEXT("The courier used the side gate.");
+	Request.Language = ESpeechGenLanguage::English;
+	FSpeechGenVoiceWeight& Voice = Request.VoiceBlend.AddDefaulted_GetRef();
+	Voice.VoiceId = TEXT("am_adam");
+	Voice.Weight = 1.0f;
+	const FString Original = FSpeechGenAudioCache::MakeKey(Request);
+	TestEqual(TEXT("Identical request uses the same cache entry"), FSpeechGenAudioCache::MakeKey(Request), Original);
+	Request.Text += TEXT(" ");
+	TestNotEqual(TEXT("Text matches exactly"), FSpeechGenAudioCache::MakeKey(Request), Original);
+	Request.Text.RemoveAt(Request.Text.Len() - 1);
+	Request.Language = ESpeechGenLanguage::GermanExperimental;
+	TestNotEqual(TEXT("Language is part of the identity"), FSpeechGenAudioCache::MakeKey(Request), Original);
+	Request.Language = ESpeechGenLanguage::English;
+	Request.VoiceBlend[0].VoiceId = TEXT("am_michael");
+	TestNotEqual(TEXT("Voice blend is part of the identity"), FSpeechGenAudioCache::MakeKey(Request), Original);
+	Request.VoiceBlend[0].VoiceId = TEXT("am_adam");
+	Request.Speed = 1.1f;
+	TestNotEqual(TEXT("Synthesis settings are part of the identity"), FSpeechGenAudioCache::MakeKey(Request), Original);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSpeechGenAudioCachePersistenceTest,
+	"SpeechGen.AudioCache.Persistence",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FSpeechGenAudioCachePersistenceTest::RunTest(const FString& Parameters)
+{
+	FSpeechGenRequest Request;
+	Request.Text = FGuid::NewGuid().ToString(EGuidFormats::Digits);
+	Request.Language = ESpeechGenLanguage::English;
+	FSpeechGenVoiceWeight& Voice = Request.VoiceBlend.AddDefaulted_GetRef();
+	Voice.VoiceId = TEXT("am_adam");
+	Voice.Weight = 1.0f;
+	FSpeechGenResult Generated;
+	Generated.SampleRate = 24000;
+	Generated.PcmSamples = {0, 100, -100, 0};
+	FString Error;
+	if (!TestTrue(TEXT("Generated clip is persisted"),
+		FSpeechGenAudioCache::SaveGenerated(Request, Generated, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+	FSpeechGenResult Loaded;
+	TestTrue(TEXT("Exact clip loads"), FSpeechGenAudioCache::TryLoad(
+		FSpeechGenAudioCache::GetGeneratedDirectory(), Request, Loaded, Error));
+	TestTrue(TEXT("PCM survives roundtrip"), Loaded.PcmSamples == Generated.PcmSamples);
+	Request.Text += TEXT("changed");
+	TestFalse(TEXT("Different text misses"), FSpeechGenAudioCache::TryLoad(
+		FSpeechGenAudioCache::GetGeneratedDirectory(), Request, Loaded, Error));
+	Request.Text.LeftChopInline(7);
+	TestTrue(TEXT("Clip moves to recoverable backup"), FSpeechGenAudioCache::MoveToBackup(
+		FSpeechGenAudioCache::GetGeneratedDirectory(), FSpeechGenAudioCache::MakeKey(Request), Error));
+	TestFalse(TEXT("Backed-up clip is no longer active"), FSpeechGenAudioCache::TryLoad(
+		FSpeechGenAudioCache::GetGeneratedDirectory(), Request, Loaded, Error));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSpeechGenAudioCacheWaveImportTest,
+	"SpeechGen.AudioCache.WaveImport",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FSpeechGenAudioCacheWaveImportTest::RunTest(const FString& Parameters)
+{
+	const FString TestDirectory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Automation/SpeechGen"));
+	const FString WavePath = FPaths::Combine(TestDirectory,
+		FGuid::NewGuid().ToString(EGuidFormats::Digits) + TEXT(".wav"));
+	const FString CacheDirectory = FPaths::Combine(TestDirectory, TEXT("Cache"));
+	IFileManager::Get().MakeDirectory(*TestDirectory, true);
+	const uint8 WaveBytes[] = {
+		'R','I','F','F', 44,0,0,0, 'W','A','V','E', 'f','m','t',' ',
+		16,0,0,0, 1,0, 1,0, 0xC0,0x5D,0,0, 0x80,0xBB,0,0,
+		2,0, 16,0, 'd','a','t','a', 8,0,0,0, 0,0, 100,0, 156,255, 0,0
+	};
+	TArray<uint8> Bytes;
+	Bytes.Append(WaveBytes, UE_ARRAY_COUNT(WaveBytes));
+	if (!TestTrue(TEXT("Test WAV saved"), FFileHelper::SaveArrayToFile(Bytes, *WavePath))) return false;
+	FSpeechGenRequest Request;
+	Request.Text = FGuid::NewGuid().ToString(EGuidFormats::Digits);
+	Request.Language = ESpeechGenLanguage::English;
+	FSpeechGenVoiceWeight& Voice = Request.VoiceBlend.AddDefaulted_GetRef();
+	Voice.VoiceId = TEXT("af_nova");
+	Voice.Weight = 1.0f;
+	FString Error;
+	TestTrue(TEXT("PCM WAV imports"), FSpeechGenAudioCache::ImportWave(CacheDirectory, Request, WavePath, Error));
+	FSpeechGenResult Loaded;
+	TestTrue(TEXT("Imported clip is selected by exact request"),
+		FSpeechGenAudioCache::TryLoad(CacheDirectory, Request, Loaded, Error));
+	TestEqual(TEXT("Imported PCM sample count"), Loaded.PcmSamples.Num(), 4);
+	TestTrue(TEXT("Imported clip moved to backup"),
+		FSpeechGenAudioCache::MoveToBackup(CacheDirectory, FSpeechGenAudioCache::MakeKey(Request), Error));
+	TestTrue(TEXT("Input WAV moved to backup"),
+		IFileManager::Get().Move(*(WavePath + TEXT(".bak")), *WavePath, false));
 	return true;
 }
 

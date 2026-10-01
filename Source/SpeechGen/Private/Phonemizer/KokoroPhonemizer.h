@@ -1,9 +1,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Phonemizer/KokoroLanguageFrontend.h"
 #include "SpeechGen/SpeechGenTypes.h"
-
-class FKokoroLanguageFrontend;
 
 class FKokoroPhonemizer
 {

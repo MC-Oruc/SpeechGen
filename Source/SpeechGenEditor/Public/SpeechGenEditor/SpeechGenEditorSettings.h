@@ -14,7 +14,7 @@ enum class ESpeechGenInstallState : uint8
 	Failed
 };
 
-UCLASS(Config = EditorPerProjectUserSettings, DefaultConfig, meta = (DisplayName = "SpeechGen"))
+UCLASS(Config = EditorPerProjectUserSettings, meta = (DisplayName = "SpeechGen"))
 class SPEECHGENEDITOR_API USpeechGenEditorSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()

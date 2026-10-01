@@ -9,6 +9,7 @@
 
 class FKokoroPhonemizer;
 class UNNEModelData;
+class UGameInstance;
 namespace UE::NNE
 {
 	class IModelCPU;
@@ -24,6 +25,10 @@ public:
 	static constexpr int32 SampleRate = 24000;
 	static constexpr const TCHAR* RuntimeVersion = TEXT("v1.0-cpu-mixed.2");
 
+#if WITH_EDITOR
+	static USpeechGenSubsystem* CreateEditorPreviewRuntime(UGameInstance& Owner);
+#endif
+
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 
@@ -37,6 +42,7 @@ public:
 	void StopRuntime();
 
 	FGuid SynthesizeAsync(const FSpeechGenRequest& Request);
+	void SetAuthoredCacheDirectory(const FString& Directory);
 	void CancelTurn(FGuid TurnId);
 	void CancelAll();
 
@@ -45,6 +51,9 @@ public:
 	FSpeechGenRuntimeStateChanged OnRuntimeStateChanged;
 
 	static FString ResolveRuntimeDirectory();
+
+	UFUNCTION()
+	static TArray<FString> GetAvailableVoiceIds();
 
 private:
 	struct FResolvedRequest;
@@ -74,4 +83,5 @@ private:
 	std::atomic<int32> PendingRequestCount{0};
 	uint64 RuntimeGeneration = 0;
 	bool bShuttingDown = false;
+	FString AuthoredCacheDirectory;
 };

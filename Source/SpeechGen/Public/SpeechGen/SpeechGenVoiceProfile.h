@@ -27,4 +27,5 @@ public:
 		float& OutPauseScale, FString& OutError) const;
 	static bool ValidateVoiceBlend(ESpeechGenLanguage Language,
 		const TArray<FSpeechGenVoiceWeight>& Blend, FString& OutError);
+	static TOptional<ESpeechGenLanguage> GetVoiceLanguage(FName VoiceId);
 };
