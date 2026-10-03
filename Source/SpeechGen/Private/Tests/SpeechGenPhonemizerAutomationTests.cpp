@@ -159,6 +159,19 @@ namespace
 				Request.Text = InferenceCase.Text;
 				Request.Language = InferenceCase.Language;
 				Request.VoiceBlend = VoiceProfile->NativeVoiceBlend;
+				// Inference coverage must not be satisfied by a previous run's audio cache.
+				const FString CacheDirectory = FSpeechGenAudioCache::GetGeneratedDirectory();
+				const FString CacheKey = FSpeechGenAudioCache::MakeKey(Request);
+				if (IFileManager::Get().FileExists(*FPaths::Combine(CacheDirectory, CacheKey + TEXT(".socvoice"))))
+				{
+					FString CacheError;
+					if (!FSpeechGenAudioCache::MoveToBackup(CacheDirectory, CacheKey, CacheError))
+					{
+						Test.AddError(CacheError);
+						Cleanup();
+						return true;
+					}
+				}
 				ExpectedSegmentId = SpeechGen->SynthesizeAsync(Request);
 				bSubmitted = true;
 				return false;
@@ -193,6 +206,8 @@ namespace
 				return;
 			}
 			PcmSamples = Result.PcmSamples;
+			Test.TestTrue(TEXT("Kokoro inference executes synthesis instead of loading cached audio"),
+				Result.Source == ESpeechGenResultSource::Synthesized);
 			Phonemes = Result.Phonemes;
 			DurationSeconds = Result.DurationSeconds;
 			bReceivedResult = true;
